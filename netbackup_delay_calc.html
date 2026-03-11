@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>NetBackup Delay Calculator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f4f4f4;
+    }
+    textarea {
+        width: 100%;
+        height: 200px;
+        font-family: monospace;
+        padding: 10px;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+    label {
+        font-weight: bold;
+    }
+    input {
+        padding: 5px;
+        margin-bottom: 10px;
+        width: 100px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: #0078d7;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+    button:hover {
+        background-color: #005a9e;
+    }
+    .results {
+        margin-top: 20px;
+        background: white;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+</style>
+</head>
+<body>
+
+<h2>NetBackup Delay Calculator</h2>
+<p>Paste your NetBackup job details below, set the delay factor, then click "Calculate Delay". (Default is 0.015)</p>
+
+<label for="jobDetails">Job Details:</label><br>
+<textarea id="jobDetails" placeholder="Paste NetBackup job log here..."></textarea><br>
+
+<label for="delayFactor">Delay Factor (seconds per delay):</label><br>
+<input type="number" id="delayFactor" step="0.001" value="0.015"><br><br>
+
+<button onclick="calculateDelay()">Calculate Delay</button>
+
+<div class="results" id="results"></div>
+
+<script>
+function calculateDelay() {
+    let logText = document.getElementById("jobDetails").value;
+    let factor = parseFloat(document.getElementById("delayFactor").value);
+
+    if (isNaN(factor) || factor <= 0) {
+        document.getElementById("results").innerHTML = 
+            "<span style='color:red;'>Please enter a valid delay factor.</span>";
+        return;
+    }
+
+    let delayRegex = /delayed\s+(\d+)\s+times/i;
+    let match = logText.match(delayRegex);
+
+    if (match) {
+        let delayCount = parseInt(match[1], 10);
+        let seconds = delayCount * factor;
+        let minutes = seconds / 60;
+        let hours = minutes / 60;
+
+        document.getElementById("results").innerHTML = `
+            <strong>Delay Count:</strong> ${delayCount}<br>
+            <strong>Delay Factor:</strong> ${factor} seconds<br>
+            <strong>Delay in Seconds:</strong> ${seconds.toFixed(3)}<br>
+            <strong>Delay in Minutes:</strong> ${minutes.toFixed(5)}<br>
+            <strong>Delay in Hours:</strong> ${hours.toFixed(8)}
+        `;
+    } else {
+        document.getElementById("results").innerHTML = 
+            "<span style='color:red;'>No delay information found in the pasted job details.</span>";
+    }
+}
+</script>
+
+</body>
+</html>
