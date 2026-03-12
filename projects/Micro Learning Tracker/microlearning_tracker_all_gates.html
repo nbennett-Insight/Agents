@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Microlearning Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Klinic+Slab:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Greycliff+CF:wght@400;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #F5F5F5; min-height: 100vh; padding: 20px; color: #3E332D; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(62, 51, 45, 0.1); overflow: hidden; }
+        .header { background: #582873; color: white; padding: 30px; text-align: center; position: relative; }
+        .header h1 { font-family: 'Klinic Slab', 'Greycliff CF', Arial, sans-serif; font-size: 2.5em; margin-bottom: 10px; font-weight: 700; }
+        .header p { font-family: Arial, sans-serif; }
+        .user-info { background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.2); }
+        .content { padding: 30px; }
+        .level-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .level-card { color: white; padding: 20px; border-radius: 8px; text-align: center; transition: transform 0.3s; }
+        .level-card:hover { transform: translateY(-5px); }
+        .level-card.level-1 { background: #5BC3E6; }
+        .level-card.level-2 { background: #3FA9F5; }
+        .level-card.level-3 { background: #6E3B8F; }
+        .level-card.level-4 { background: #D30C55; }
+        .level-card.level-5 { background: #FF8C42; }
+        .level-card h3 { font-family: 'Greycliff CF', Arial, sans-serif; font-size: 1.5em; margin-bottom: 10px; font-weight: 700; }
+        .level-card .count { font-family: 'Greycliff CF', Arial, sans-serif; font-size: 2.2em; font-weight: bold; }
+        .level-card .requirement { font-size: 0.9em; opacity: 0.95; margin-top: 5px; }
+        .stats-bar { background: #F5F5F5; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px; border: 1px solid #E0E0E0; }
+        .stat-item { text-align: center; }
+        .stat-item .label { font-size: 0.9em; color: #3E332D; margin-bottom: 5px; font-family: Arial, sans-serif; }
+        .stat-item .value { font-family: 'Greycliff CF', Arial, sans-serif; font-size: 1.8em; font-weight: bold; color: #582873; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .search-box { font-family: Arial, sans-serif; flex: 1; min-width: 250px; padding: 12px; border: 2px solid #582873; border-radius: 8px; font-size: 1em; }
+        .search-box:focus { outline: none; border-color: #D30C55; }
+        .filter-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .filter-btn { font-family: 'Greycliff CF', Arial, sans-serif; padding: 10px 20px; border: 2px solid #582873; background: white; color: #582873; border-radius: 8px; cursor: pointer; transition: all 0.3s; font-weight: 600; }
+        .filter-btn:hover, .filter-btn.active { background: #582873; color: white; }
+        .table-container { overflow-x: auto; margin-bottom: 30px; max-height: 600px; overflow-y: auto; border: 1px solid #E0E0E0; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
+        thead { position: sticky; top: 0; z-index: 10; background: #582873; }
+        th { background: #582873; color: white; padding: 15px; text-align: left; font-family: 'Greycliff CF', Arial, sans-serif; font-weight: 600; border: none; vertical-align: middle; height: 53px; line-height: 1.2; }
+        td { font-family: Arial, sans-serif; padding: 12px 15px; border-bottom: 1px solid #E0E0E0; overflow: hidden; text-overflow: ellipsis; }
+        tr:hover { background: #F5F5F5; }
+        tr.completed { background: #E8DAFF; }
+        .task-link { color: #5990F0; text-decoration: none; font-weight: 500; }
+        .task-link:hover { color: #D30C55; text-decoration: underline; }
+        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #D30C55; }
+        input[type="date"] { font-family: Arial, sans-serif; padding: 8px; border: 1px solid #BDBDBD; border-radius: 4px; font-size: 0.95em; }
+        input[type="date"]:focus { outline: none; border-color: #582873; }
+        select { font-family: Arial, sans-serif; padding: 8px 12px; border: 1px solid #BDBDBD; border-radius: 4px; font-size: 0.95em; cursor: pointer; background: white; }
+        select:focus { outline: none; border-color: #582873; }
+        .btn { font-family: 'Greycliff CF', Arial, sans-serif; background: #582873; color: white; border: none; padding: 10px 12px; font-size: 1em; border-radius: 2px; cursor: pointer; transition: background 0.3s; font-weight: 600; }
+        .btn:hover:not(:disabled) { background: #401d54; }
+        .btn:disabled { background: #BDBDBD; cursor: not-allowed; }
+        .btn-secondary { background: #5990F0; padding: 10px 20px; font-size: 0.9em; }
+        .btn-secondary:hover { background: #4EC7EA; }
+        .btn-danger { background: #D30C55; }
+        .btn-danger:hover { background: #B01C87; }
+        .output-section { background: #F5F5F5; padding: 20px; border-radius: 8px; margin-top: 30px; border: 1px solid #E0E0E0; }
+        .output-section h3 { font-family: 'Greycliff CF', Arial, sans-serif; margin-bottom: 15px; color: #3E332D; font-weight: 700; }
+        .output-section p { font-family: Arial, sans-serif; }
+        textarea { font-family: 'Courier New', monospace; width: 100%; min-height: 300px; padding: 15px; border: 1px solid #BDBDBD; border-radius: 4px; font-size: 0.95em; resize: vertical; }
+        textarea:focus { outline: none; border-color: #582873; }
+        .btn-group { display: flex; gap: 5px; margin-top: 15px; flex-wrap: wrap; }
+        .error { background: #F8D5F8; color: #B01C87; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #D40E8C; font-family: Arial, sans-serif; }
+        .success { background: #E8DAFF; color: #582873; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #582873; font-family: Arial, sans-serif; }
+        .loading { text-align: center; padding: 40px; font-size: 1.2em; color: #582873; font-family: 'Greycliff CF', Arial, sans-serif; }
+        .loading::after { content: '...'; animation: dots 1.5s steps(4, end) infinite; }
+        @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60%, 100% { content: '...'; } }
+        .hidden { display: none; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; margin-left: 8px; font-family: 'Greycliff CF', Arial, sans-serif; }
+        .badge-level-1 { background: #5990F0; color: white; }
+        .badge-level-2 { background: #4EC7EA; color: white; }
+        .badge-level-3 { background: #D40E8C; color: white; }
+        .badge-level-4 { background: #D30C55; color: white; }
+        .badge-level-5 { background: #FF8C42; color: white; }
+        .sortable { cursor: pointer; user-select: none; position: relative; padding-right: 35px !important; border: none !important;  vertical-align: middle;}
+        .sort-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8em; opacity: 0.5; pointer-events: none; display: inline-block; width: 12px; text-align: center; }
+        .sort-icon.active { opacity: 1; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); }
+        .modal-content h2 { font-family: 'Klinic Slab', 'Greycliff CF', Arial, sans-serif; color: #582873; margin-bottom: 15px; font-size: 1.8em; }
+        .modal-content p { font-family: Arial, sans-serif; color: #3E332D; margin-bottom: 20px; }
+        .modal-content input { font-family: Arial, sans-serif; width: 100%; padding: 12px; border: 2px solid #582873; border-radius: 8px; font-size: 1em; margin-bottom: 20px; }
+        .modal-content input:focus { outline: none; border-color: #D30C55; }
+        .modal-content button { width: 100%; }
+        .info-icon { position: absolute; top: 20px; right: 30px; width: 40px; height: 40px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; font-size: 1.5em; font-weight: bold; color: white; font-family: 'Greycliff CF', Arial, sans-serif; }
+        .info-icon:hover { background: rgba(255,255,255,0.3); transform: scale(1.1); }
+        .instructions-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 2000; overflow-y: auto; padding: 20px; }
+        .instructions-content { background: white; padding: 40px; border-radius: 12px; max-width: 700px; width: 100%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); max-height: 90vh; overflow-y: auto; }
+        .instructions-content h2 { font-family: 'Klinic Slab', 'Greycliff CF', Arial, sans-serif; color: #582873; margin-bottom: 20px; font-size: 2em; display: flex; align-items: center; }
+        .instructions-content h2 span { margin-right: 10px; }
+        .instructions-content h3 { font-family: 'Greycliff CF', Arial, sans-serif; color: #582873; margin-top: 25px; margin-bottom: 10px; font-size: 1.3em; }
+        .instructions-content p, .instructions-content li { font-family: Arial, sans-serif; color: #3E332D; line-height: 1.8; margin-bottom: 10px; }
+        .instructions-content ul, .instructions-content ol { margin-left: 20px; margin-bottom: 15px; }
+        .instructions-content .highlight { background: #E8DAFF; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #582873; }
+        .instructions-content .close-btn { margin-top: 20px; }
+        .footer { background: #582873; color: white; padding: 20px 30px; text-align: center; font-family: Arial, sans-serif; font-size: 0.9em; border-top: 3px solid #D30C55; }
+        .footer p { margin: 0; line-height: 1.6; }
+        .footer .divider { margin: 0 10px; color: rgba(255,255,255,0.5); }
+        @media (max-width: 768px) {
+            .info-icon { top: 15px; right: 15px; width: 35px; height: 35px; font-size: 1.2em; }
+            .instructions-content { padding: 25px; }
+            .container { margin: 10px; }
+            .header h1 { font-size: 1.8em; }
+            .level-summary { grid-template-columns: 1fr; }
+            table { font-size: 0.85em; }
+            th, td { padding: 8px 6px; }
+            .controls { flex-direction: column; }
+            .search-box { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="info-icon" onclick="showInstructions()" title="How to use this tracker">i</div>
+            <h1>📋 AI Microlearning Tracker</h1>
+            <p>Track and manage your AI Microlearnings across the levels</p>
+            <div class="user-info">
+                <strong>Welcome </strong> <span id="userName">Guest</span> | Date:</strong> <span id="currentDate"></span>
+            </div>
+        </div>
+        <div class="content">
+            <div id="loadingSection" class="loading">Loading Microlearnings</div>
+            <div id="messageArea"></div>
+            <div id="trackerSection" class="hidden">
+                <div class="stats-bar">
+                    <div class="stat-item"><div class="label">Total Microlearnings</div><div class="value" id="totalTasks">0</div></div>
+                    <div class="stat-item"><div class="label">Completed</div><div class="value" id="completedTasks">0</div></div>
+                    <div class="stat-item"><div class="label">Assigned</div><div class="value" id="assignedTasks">0</div></div>
+                    <div class="stat-item"><div class="label">Progress</div><div class="value" id="progressPercent">0%</div></div>
+                </div>
+                <div class="level-summary">
+                    <div class="level-card level-1">
+                        <h3>Level 1</h3>
+                        <div class="count" id="level1Count">0/4</div>
+                        <p class="requirement">Gate Agent</p>
+                    </div>
+                    <div class="level-card level-2">
+                        <h3>Level 2</h3>
+                        <div class="count" id="level2Count">0/12</div>
+                        <p class="requirement">Flight Crew</p>
+                    </div>
+                    <div class="level-card level-3">
+                        <h3>Level 3</h3>
+                        <div class="count" id="level3Count">0/20</div>
+                        <p class="requirement">First Officer</p>
+                    </div>
+                    <div class="level-card level-4">
+                        <h3>Level 4</h3>
+                        <div class="count" id="level4Count">0/20</div>
+                        <p class="requirement">Captain</p>
+                    </div>
+                    <div class="level-card level-5">
+                        <h3>Level 5</h3>
+                        <div class="count" id="level5Count">0/20</div>
+                        <p class="requirement">Sky Maverick</p>
+                    </div>
+                </div>
+                <div class="controls">
+                    <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search Microlearnings..." oninput="filterTasks()" />
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" onclick="setFilter('all')">All</button>
+                        <button class="filter-btn" onclick="setFilter('completed')">Completed</button>
+                        <button class="filter-btn" onclick="setFilter('pending')">Pending</button>
+                        <button class="filter-btn" onclick="setFilter('level1')">Level 1</button>
+                        <button class="filter-btn" onclick="setFilter('level2')">Level 2</button>
+                        <button class="filter-btn" onclick="setFilter('level3')">Level 3</button>
+                        <button class="filter-btn" onclick="setFilter('level4')">Level 4</button>
+                        <button class="filter-btn" onclick="setFilter('level5')">Level 5</button>
+                    </div>
+                </div>
+                <div class="btn-group" style="margin-bottom: 20px;">
+                    <button class="btn btn-secondary" onclick="exportProgress()">💾 Export Progress</button>
+                    <button class="btn btn-danger" onclick="clearAllData()">🗑️ Clear All Data</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">Done</th>
+                                <th class="sortable" onclick="sortTasks('task')">
+                                    Microlearning
+                                    <span class="sort-icon" id="sort-icon-task">▲</span>
+                                </th>
+                                <th class="sortable" style="width: 150px;" onclick="sortTasks('publishedDate')">
+                                    Published
+                                    <span class="sort-icon" id="sort-icon-publishedDate">▲</span>
+                                </th>
+                                <th style="width: 160px;">Completed Date</th>
+                                <th style="width: 130px;">Level</th>
+                                <th style="width: 110px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasksTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="output-section">
+                    <h3>📝 Generate Output</h3>
+                    <p style="margin-bottom: 15px; color: #666;">Generate formatted output once you've completed the required number of tasks for each level</p>
+                    <div class="btn-group">
+                        <button class="btn" onclick="generateOutput(1)" id="generateLevel1">Generate Level 1 Output (4 tasks)</button>
+                        <button class="btn" onclick="generateOutput(2)" id="generateLevel2">Generate Level 2 Output (12 tasks)</button>
+                        <button class="btn" onclick="generateOutput(3)" id="generateLevel3">Generate Level 3 Output (20 tasks)</button>
+                        <button class="btn" onclick="generateOutput(4)" id="generateLevel4">Generate Level 4 Output (20 tasks)</button>
+                        <button class="btn" onclick="generateOutput(5)" id="generateLevel5">Generate Level 5 Output (20 tasks)</button>
+                    </div>
+                    <textarea id="outputText" placeholder="Generated output will appear here..."></textarea>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="copyOutput()">📋 Copy to Clipboard</button>
+                        <button class="btn btn-secondary" onclick="downloadOutput()">💾 Download as Text</button>
+                        <button class="btn btn-secondary" onclick="clearOutput()">🗑️ Clear Output</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            <p>Insight Enterprises <span class="divider">|</span> 2025</p>
+            <p>Vibe coded by <a style="color: #ffffff; text-decoration: none;" href="mailto:Mayank.Mathur@insight.com">Mayank Mathur</a> using <a style="color: #2d91cf; text-decoration: none;" href="https://horizon.insight.com/">Horizon AI</a></p>
+        </div>
+    </div>
+    <script>
+        // Embedded CSV data
+        const CSV_DATA = `Task,Task URL,Task published date
+"Future Proofing Your Career with AI Skills","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Future-Proofing-Your-Career-with-AI-Skills.aspx","02 Dec 2025"
+"Horizon: AI-Powered Productivity at Insight","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Horizon.ai.aspx","24 Nov 2025"
+"Demystifying the Levels in the AI Flight Academy","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Demystifying-the-Levels-in-the-AI-Flight-Academy.aspx","17 Nov 2025"
+"AI: Your Unstuck Assistant for Productive Action Podcast","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI--Your-Unstuck-Assistant-for-Productive-Action.aspx","10 Nov 2025"
+"CAISY (Conversation AI Simulator)","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/CAISY-(Conversation-AI.aspx","03 Nov 2025"
+"How AI is Changing Leadership & Business Strategy","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/How-AI-is-Changing-Leadership-%26-Business-Strategy.aspx","27 Oct 2025"
+"Why Engagement Matters in the Age of AI","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Why-Engagement-Matters-in-the-Age-of-AI.aspx","20 Oct 2025"
+"AI for Smarter Goal Setting & Performance Tracking","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-for-Smarter-Goal-Setting-%26-Performance-Tracking.aspx","13 Oct 2025"
+"Meet Amelia: Your AI Navigator for Innovation at Insight","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Meet-Amelia--Your-AI-Navigator-for-Innovation-at-Insight.aspx","06 Oct 2025"
+"Goose: A Sales Discovery Tool","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Goose--A-Sales-Discovery-Tool.aspx","29 Sep 2025"
+"Prompt Optimizer","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Prompt-Optimizer.aspx","22 Sep 2025"
+"AI & Internal Communications: Improving Team Collaboration","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-%26-Internal-Communications--Improving-Team-Collaboration.aspx","15 Sep 2025"
+"Top 10 AI related Videogames To Play","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Top-10-AI-related-Videogames-To-Play.aspx","08 Sep 2025"
+"AI-Powered Process Automation: How It Saves Time in Any Job","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-Powered-Process-Automation--How-It-Saves-Time-in-Any-Job.aspx","02 Sep 2025"
+"Using AI to Identify Business Opportunities & Trends","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Using-AI-to-Identify-Business-Opportunities-%26-Trends.aspx","25 Aug 2025"
+"AI for Sales & Marketing: Personalization at Scale","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-for-Sales-%26-Marketing--Personalization-at-Scale(1).aspx","18 Aug 2025"
+"Insight AI Flight Academy (coming soon)","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Insight-AI-Flight-Academy.aspx","11 Aug 2025"
+"Top 10 AI Movies to Watch","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Top-10-AI-Movies-to-Watch.aspx","04 Aug 2025"
+"Our New AI Policy is Here","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Our-New-AI-Policy-is-Here.aspx","28 July 2025"
+"AI & Ethics: Ensuring Responsible AI Use in the Workplace","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-%26-Ethics--Ensuring-Responsible-AI-Use-in-the-Workplace.aspx","21 July 2025"
+"AI & Employee Well-Being: Balancing Workloads & AI Integration","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-%26-Employee-Well-Being--Balancing-Workloads-%26-AI-Integration.aspx","14 July 2025"
+"How Microsoft's AI Improves Cybersecurity & Compliance","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/How-AI-Improves-Cybersecurity-%26-Compliance.aspx","07 July 2025"
+"AI in Finance: Smarter Budgeting & Forecasting for Every Team","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-in-Finance--Smarter-Budgeting-%26-Forecasting-for-Every-Team.aspx","30 June 2025"
+"Better Answers from AI: Start by Asking What It Needs","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Better-Answers-from-AI--Start-by-Asking-What-It-Needs.aspx","23 June 2025"
+"Use AI to Brainstorm","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Use-AI-to-Brainstorm.aspx","16 June 2025"
+"Leveraging AI for Research & Competitive Insights","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Leveraging-AI-for-Research-%26-Competitive-Insights.aspx","09 June 2025"
+"AI & Creativity: How AI Enhances Innovation in Any Role","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-%26-Creativity--How-AI-Enhances-Innovation-in-Any-Role.aspx","02 June 2025"
+"AI for Time Management & Productivity","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-for-Time-Management-%26-Productivity.aspx","27 May 2025"
+"How AI Improves Client & Employee Communications","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/How-AI-Improves-Client-%26-Employee-Communications.aspx","20 May 2025"
+"The Dark Side of AI: Why Human Expertise Matters","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/The-Dark-Side-of-AI--Why-Human-Expertise-Matters.aspx","12 May 2025"
+"Write Great Copilot Prompts","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/Write-Great-Promps.aspx","05 May 2025"
+"AI for Smarter Decision-Making in Excel and Power BI","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-for-Smarter-Decision-Making.aspx","28 Apr 2025"
+"AI Prompting Cheat Sheet","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-Prompting-cheat-sheet.aspx","21 Apr 2025"
+"AI for Daily Workflows: How Microsoft Copilot Enhances Productivity","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-for-Daily-Workflows--How-Microsoft-Copilot-Enhances-Productivity.aspx","14 Apr 2025"
+"The Basics of AI: A Glossary of What Every Teammate Needs to Know","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/The-Basics-of-AI--A-Glossary-of-What-Every-Teammate-Needs-to-Know.aspx","08 Apr 2025"
+"AI Microlearning: AI in a Minute","https://insightonlinecan.sharepoint.com/sites/InvestToBeOurBest/SitePages/AI-in-a-Minute.aspx","03 Apr 2025"`;
+
+        let tasks = [], filteredTasks = [], currentFilter = 'all', currentSort = { column: null, direction: 'asc' };
+        const STORAGE_KEY = 'taskTrackerData_v1';
+        const USER_SETTINGS_KEY = 'taskTrackerUserSettings';
+        
+        function showInstructions() {
+            const overlay = document.createElement('div');
+            overlay.className = 'instructions-modal';
+            overlay.innerHTML = `
+                <div class="instructions-content">
+                    <h2><span>ℹ️</span>How to Use AI Microlearning Tracker</h2>
+                    
+                    <h3>📚 Getting Started</h3>
+                    <p>Welcome to the AI Microlearning Tracker! This tool helps you track and manage your learning journey through five progressive levels: <span class="highlight">Gate Agent</span>, <span class="highlight">Flight Crew</span>, <span class="highlight">First Officer</span>, <span class="highlight">Captain</span>, and <span class="highlight">Sky Maverick</span>.</p>
+                    
+                    <h3>💬 Share Your Feedback</h3>
+                    <p>We'd love to hear from you! Please share your feedback about this tracker:</p>
+                    <ul>
+                        <li>Submit feedback at: <a href="https://insightonline.sharepoint.com/sites/AITransformation/Lists/AI%20Celebrations/DispForm.aspx?ID=18608&e=IgENJ4" target="_blank" style="color: #5990F0; text-decoration: underline;">AI Celebration</a> comments.</li>
+                        <li>Or if this helps you, leave some kind words on the <a href="https://insightonline.sharepoint.com/sites/AITransformation/Lists/AI%20Celebrations/DispForm.aspx?ID=18608&e=IgENJ4" target="_blank" style="color: #5990F0; text-decoration: underline;">AI Celebration</a> to show your support!</li>
+                    </ul>
+                    
+                    <h3>✅ Marking Microlearnings Complete</h3>
+                    <ol>
+                        <li>Browse through the list of AI microlearnings in the table</li>
+                        <li>Check the checkbox in the <span class="highlight">Done</span> column when you complete a microlearning</li>
+                        <li>The completion date will automatically populate with today's date</li>
+                        <li>You can adjust the completion date if needed</li>
+                    </ol>
+                    
+                    <h3>🎯 Assigning Levels</h3>
+                    <p>Once a microlearning is marked complete, you can assign it to a level:</p>
+                    <ul>
+                        <li><span class="highlight">Level 1 (Gate Agent)</span>: Assign 4 completed microlearnings</li>
+                        <li><span class="highlight">Level 2 (Flight Crew)</span>: Assign 12 completed microlearnings</li>
+                        <li><span class="highlight">Level 3 (First Officer)</span>: Assign 20 completed microlearnings</li>
+                        <li><span class="highlight">Level 4 (Captain)</span>: Assign 20 completed microlearnings</li>
+                        <li><span class="highlight">Level 5 (Sky Maverick)</span>: Assign 20 completed microlearnings</li>
+                    </ul>
+                    <p>Select the appropriate level from the dropdown in the <span class="highlight">Level</span> column. Each level has a maximum limit to ensure balanced progression.</p>
+                    
+                    <h3>🔍 Search & Filter</h3>
+                    <ul>
+                        <li>Use the search box to find specific microlearnings by name</li>
+                        <li>Filter by status: All, Completed, Pending</li>
+                        <li>Filter by level: Levels 1–5</li>
+                        <li>Click column headers (<span class="highlight">Task</span> or <span class="highlight">Published</span>) to sort</li>
+                    </ul>
+                    
+                    <h3>📝 Generating Output</h3>
+                    <p>Once you've assigned the required number of microlearnings to a level:</p>
+                    <ol>
+                        <li>The corresponding <span class="highlight">Generate Level Output</span> button will become active</li>
+                        <li>Click the button to generate a formatted list of your completed microlearnings</li>
+                        <li>Copy to clipboard or download as a text file for submission</li>
+                    </ol>
+                    
+                    <h3>💾 Data Management</h3>
+                    <ul>
+                        <li><span class="highlight">Export Progress</span>: Save your progress as a JSON backup file</li>
+                        <li><span class="highlight">Clear All Data</span>: Reset all progress (cannot be undone)</li>
+                        <li>Your data is automatically saved in your browser</li>
+                        <li>Data is saved on browser so do not switch browsers after marking the progress</li>
+                    </ul>
+                    
+                    <h3>📊 Progress Tracking</h3>
+                    <p>Monitor your progress at a glance:</p>
+                    <ul>
+                        <li>View total microlearnings, completed count, and assigned count</li>
+                        <li>Track overall completion percentage</li>
+                        <li>See real-time updates on level cards</li>
+                    </ul>
+                    
+                    <button class="btn" onclick="hideInstructions()">Got it!</button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) hideInstructions();
+            });
+        }
+        
+        function hideInstructions() {
+            const modal = document.querySelector('.instructions-modal');
+            if (modal) modal.remove();
+        }
+        
+        function initialize() {
+            updateCurrentDate();
+            checkAndPromptUserName();
+            loadTasksFromData();
+        }
+        
+        function updateCurrentDate() {
+            const now = new Date();
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+        }
+        
+        function checkAndPromptUserName() {
+            const userSettings = loadUserSettings();
+            if (userSettings && userSettings.userName) {
+                document.getElementById('userName').textContent = userSettings.userName;
+            } else {
+                showUserNameModal();
+            }
+        }
+        
+        function showUserNameModal() {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+                <div class="modal-content">
+                    <h2>Welcome! 👋</h2>
+                    <p>Please enter your name to get started:</p>
+                    <input type="text" id="userNameInput" placeholder="Enter your name" autofocus />
+                    <button class="btn" onclick="saveUserName()">Continue</button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            document.getElementById('userNameInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') saveUserName();
+            });
+        }
+        
+        function saveUserName() {
+            const nameInput = document.getElementById('userNameInput');
+            const userName = nameInput.value.trim();
+            
+            if (!userName) {
+                nameInput.style.borderColor = '#D30C55';
+                return;
+            }
+            
+            const userSettings = { userName: userName, firstVisit: true };
+            localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(userSettings));
+            document.getElementById('userName').textContent = userName;
+            
+            const overlay = document.querySelector('.modal-overlay');
+            if (overlay) overlay.remove();
+            
+            // Show instructions modal after user enters their name
+            setTimeout(showInstructions, 300);
+        }
+        
+        function loadUserSettings() {
+            const saved = localStorage.getItem(USER_SETTINGS_KEY);
+            if (saved) {
+                try { return JSON.parse(saved); }
+                catch (error) { console.error('Failed to load user settings:', error); return null; }
+            }
+            return null;
+        }
+        
+        function loadTasksFromData() {
+            showLoading(true);
+            try {
+                const newTasks = parseCSV(CSV_DATA);
+                if (newTasks.length === 0) throw new Error('No valid tasks found');
+                const savedTasks = loadFromLocalStorage();
+                tasks = newTasks.map(task => {
+                    const savedTask = savedTasks.find(st => st.task === task.task);
+                    return savedTask ? { ...task, completed: savedTask.completed, completedDate: savedTask.completedDate, level: savedTask.level } : task;
+                });
+                filteredTasks = [...tasks];
+                renderTasks();
+                showTrackerSection();
+                showSuccess(`Successfully loaded ${tasks.length} tasks!`);
+            } catch (error) {
+                console.error('Load tasks error:', error);
+                showError(error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim());
+            if (lines.length < 2) throw new Error('CSV data is empty');
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
+            const taskIndex = headers.findIndex(h => h === 'task');
+            const urlIndex = headers.findIndex(h => h.includes('url'));
+            const dateIndex = headers.findIndex(h => h.includes('published') || h.includes('date'));
+            if (taskIndex === -1) throw new Error('CSV must have a "Task" column');
+            const parsedTasks = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = parseCSVLine(lines[i]);
+                if (values[taskIndex] && values[taskIndex].trim()) {
+                    parsedTasks.push({ id: i - 1, task: values[taskIndex] || '', url: values[urlIndex] || '#', publishedDate: values[dateIndex] || '', completed: false, completedDate: '', level: '' });
+                }
+            }
+            return parsedTasks;
+        }
+        
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '', inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) { result.push(current.trim().replace(/^"|"$/g, '')); current = ''; }
+                else current += char;
+            }
+            result.push(current.trim().replace(/^"|"$/g, ''));
+            return result;
+        }
+        
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            filterTasks();
+        }
+        
+        function filterTasks() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            filteredTasks = tasks.filter(task => {
+                const matchesSearch = task.task.toLowerCase().includes(searchTerm);
+                let matchesFilter = true;
+                switch(currentFilter) {
+                    case 'completed': matchesFilter = task.completed; break;
+                    case 'pending': matchesFilter = !task.completed; break;
+                    case 'level1': matchesFilter = task.level === '1'; break;
+                    case 'level2': matchesFilter = task.level === '2'; break;
+                    case 'level3': matchesFilter = task.level === '3'; break;
+                    case 'level4': matchesFilter = task.level === '4'; break;
+                    case 'level5': matchesFilter = task.level === '5'; break;
+                }
+                return matchesSearch && matchesFilter;
+            });
+            applySorting();
+            renderTasks();
+        }
+        
+        function sortTasks(column) {
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+            updateSortIcons();
+            applySorting();
+            renderTasks();
+        }
+        
+        function applySorting() {
+            if (!currentSort.column) return;
+            
+            filteredTasks.sort((a, b) => {
+                let valA, valB;
+                
+                if (currentSort.column === 'task') {
+                    valA = a.task.toLowerCase();
+                    valB = b.task.toLowerCase();
+                } else if (currentSort.column === 'publishedDate') {
+                    valA = parseDate(a.publishedDate);
+                    valB = parseDate(b.publishedDate);
+                }
+                
+                if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        
+        function parseDate(dateStr) {
+            if (!dateStr) return new Date(0);
+            const months = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 };
+            const parts = dateStr.split(' ');
+            if (parts.length === 3) {
+                const day = parseInt(parts[0]);
+                const month = months[parts[1]];
+                const year = parseInt(parts[2]);
+                return new Date(year, month, day);
+            }
+            return new Date(dateStr);
+        }
+        
+        function updateSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.classList.remove('active');
+                icon.textContent = '▲';
+            });
+            
+            if (currentSort.column) {
+                const icon = document.getElementById(`sort-icon-${currentSort.column}`);
+                if (icon) {
+                    icon.classList.add('active');
+                    icon.textContent = currentSort.direction === 'asc' ? '▲' : '▼';
+                }
+            }
+        }
+        
+        function renderTasks() {
+            const tbody = document.getElementById('tasksTableBody');
+            tbody.innerHTML = '';
+            if (filteredTasks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #999;">No tasks found</td></tr>';
+                return;
+            }
+            filteredTasks.forEach(task => {
+                const row = document.createElement('tr');
+                if (task.completed) row.classList.add('completed');
+                row.innerHTML = `
+                    <td style="text-align: center;"><input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleComplete(${task.id})" /></td>
+                    <td><a href="${task.url}" target="_blank" class="task-link" title="${task.task}">${task.task}</a>${task.level ? `<span class="badge badge-level-${task.level}">L${task.level}</span>` : ''}</td>
+                    <td>${task.publishedDate}</td>
+                    <td><input type="date" value="${task.completedDate}" ${!task.completed ? 'disabled' : ''} onchange="updateCompletedDate(${task.id}, this.value)" /></td>
+                    <td>
+                        <select onchange="updateLevel(${task.id}, this.value)" ${!task.completed ? 'disabled' : ''}>
+                            <option value="">None</option>
+                            <option value="1" ${task.level === '1' ? 'selected' : ''}>Level 1</option>
+                            <option value="2" ${task.level === '2' ? 'selected' : ''}>Level 2</option>
+                            <option value="3" ${task.level === '3' ? 'selected' : ''}>Level 3</option>
+                            <option value="4" ${task.level === '4' ? 'selected' : ''}>Level 4</option>
+                            <option value="5" ${task.level === '5' ? 'selected' : ''}>Level 5</option>
+                        </select>
+                    </td>
+                    <td><button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.85em;" onclick="clearTask(${task.id})">Clear</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+            updateStatistics();
+            updateLevelCounts();
+            updateGenerateButtons();
+        }
+        
+        function toggleComplete(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            task.completed = !task.completed;
+            if (task.completed && !task.completedDate) task.completedDate = new Date().toISOString().split('T')[0];
+            else if (!task.completed) { task.completedDate = ''; task.level = ''; }
+            saveToLocalStorage();
+            filterTasks();
+        }
+        
+        function updateCompletedDate(taskId, date) {
+            const task = tasks.find(t => t.id === taskId);
+            task.completedDate = date;
+            saveToLocalStorage();
+        }
+        
+        function updateLevel(taskId, level) {
+            const task = tasks.find(t => t.id === taskId);
+            const oldLevel = task.level;
+            if (level) {
+                const levelCounts = getLevelCounts();
+                const maxTasks = { '1': 4, '2': 12, '3': 20, '4': 20, '5': 20 };
+                if (levelCounts[level] >= maxTasks[level] && oldLevel !== level) {
+                    showError(`Level ${level} is full! Maximum ${maxTasks[level]} tasks allowed.`);
+                    filterTasks();
+                    return;
+                }
+            }
+            task.level = level;
+            saveToLocalStorage();
+            filterTasks();
+        }
+        
+        function clearTask(taskId) {
+            if (!confirm('Clear this task? This will remove completion status and level assignment.')) return;
+            const task = tasks.find(t => t.id === taskId);
+            task.completed = false;
+            task.completedDate = '';
+            task.level = '';
+            saveToLocalStorage();
+            filterTasks();
+        }
+        
+        function getLevelCounts() {
+            return {
+                '1': tasks.filter(t => t.level === '1').length,
+                '2': tasks.filter(t => t.level === '2').length,
+                '3': tasks.filter(t => t.level === '3').length,
+                '4': tasks.filter(t => t.level === '4').length,
+                '5': tasks.filter(t => t.level === '5').length
+            };
+        }
+        
+        function updateStatistics() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const assigned = tasks.filter(t => t.level).length;
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+            document.getElementById('totalTasks').textContent = total;
+            document.getElementById('completedTasks').textContent = completed;
+            document.getElementById('assignedTasks').textContent = assigned;
+            document.getElementById('progressPercent').textContent = progress + '%';
+        }
+        
+        function updateLevelCounts() {
+            const counts = getLevelCounts();
+            document.getElementById('level1Count').textContent = `${counts['1']}/4`;
+            document.getElementById('level2Count').textContent = `${counts['2']}/12`;
+            document.getElementById('level3Count').textContent = `${counts['3']}/20`;
+            document.getElementById('level4Count').textContent = `${counts['4']}/20`;
+            document.getElementById('level5Count').textContent = `${counts['5']}/20`;
+        }
+        
+        function updateGenerateButtons() {
+            const counts = getLevelCounts();
+            document.getElementById('generateLevel1').disabled = counts['1'] !== 4;
+            document.getElementById('generateLevel2').disabled = counts['2'] !== 12;
+            document.getElementById('generateLevel3').disabled = counts['3'] !== 20;
+            document.getElementById('generateLevel4').disabled = counts['4'] !== 20;
+            document.getElementById('generateLevel5').disabled = counts['5'] !== 20;
+        }
+        
+        function generateOutput(level) {
+            const levelTasks = tasks.filter(t => t.level === String(level));
+            if (levelTasks.length === 0) { showError(`No tasks assigned to Level ${level}`); return; }
+            const output = levelTasks.map(task => `Microlearning Title: ${task.task}\nDate Completed: ${formatDate(task.completedDate)}`).join('\n\n');
+            document.getElementById('outputText').value = output;
+            showSuccess(`Generated output for Level ${level} with ${levelTasks.length} tasks`);
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+        }
+        
+        function copyOutput() {
+            const output = document.getElementById('outputText');
+            if (!output.value) { showError('No output to copy'); return; }
+            output.select();
+            document.execCommand('copy');
+            showSuccess('Output copied to clipboard!');
+        }
+        
+        function downloadOutput() {
+            const output = document.getElementById('outputText').value;
+            if (!output) { showError('No output to download'); return; }
+            const blob = new Blob([output], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `task-tracker-output-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showSuccess('Output downloaded!');
+        }
+        
+        function clearOutput() { document.getElementById('outputText').value = ''; }
+        
+        function clearAllData() {
+            if (!confirm('Are you sure you want to clear ALL progress? This cannot be undone.')) return;
+            tasks.forEach(task => { task.completed = false; task.completedDate = ''; task.level = ''; });
+            localStorage.removeItem(STORAGE_KEY);
+            filterTasks();
+            showSuccess('All progress cleared successfully');
+        }
+        
+        function exportProgress() {
+            const userSettings = loadUserSettings();
+            const userName = userSettings ? userSettings.userName : 'Guest';
+            const data = { exportDate: new Date().toISOString(), user: userName, location: 'IN-Gurugram', tasks: tasks.filter(t => t.completed || t.level) };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `task-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showSuccess('Progress exported successfully!');
+        }
+        
+        function saveToLocalStorage() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+        
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try { return JSON.parse(saved); }
+                catch (error) { console.error('Failed to load from localStorage:', error); return []; }
+            }
+            return [];
+        }
+        
+        function showTrackerSection() { document.getElementById('trackerSection').classList.remove('hidden'); }
+        function showLoading(show) { document.getElementById('loadingSection').classList.toggle('hidden', !show); }
+        function showError(message) { document.getElementById('messageArea').innerHTML = `<div class="error">❌ ${message}</div>`; setTimeout(() => document.getElementById('messageArea').innerHTML = '', 5000); }
+        function showSuccess(message) { document.getElementById('messageArea').innerHTML = `<div class="success">✅ ${message}</div>`; setTimeout(() => document.getElementById('messageArea').innerHTML = '', 3000); }
+        
+        initialize();
+    </script>
+</body>
+</html>

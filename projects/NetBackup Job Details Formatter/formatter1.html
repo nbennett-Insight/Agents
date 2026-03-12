@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>NetBackup Log Formatter</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+textarea { width: 100%; height: 200px; font-family: monospace; }
+pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+</style>
+</head>
+<body>
+<h2>NetBackup Log Formatter (Auto Export)</h2>
+<p>Paste your raw log below. Once you click "Format & Download", the log will be cleaned and automatically saved as <code>formatted_log.txt</code>.</p>
+
+<textarea id="input" placeholder="Paste your log here..."></textarea><br><br>
+<button onclick="formatAndDownload()">Format & Download</button>
+
+<h3>Formatted Output:</h3>
+<pre id="output"></pre>
+
+<script>
+function formatAndDownload() {
+    let log = document.getElementById("input").value.trim();
+    if (!log) {
+        alert("Please paste a log first!");
+        return;
+    }
+
+    // Regex to match timestamps like: Sep 15, 2025, 4:58:34 AM
+    let pattern = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}, \d{4}, \d{1,2}:\d{2}:\d{2}\s[AP]M/g;
+    let formatted = log.replace(pattern, "\n$&").trim();
+
+    // Show in browser
+    document.getElementById("output").textContent = formatted;
+
+    // Create a downloadable file automatically
+    let blob = new Blob([formatted], { type: "text/plain" });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "formatted_log.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+</body>
+</html>

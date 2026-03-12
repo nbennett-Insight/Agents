@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>NetBackup Log Formatter</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+textarea { width: 100%; height: 200px; font-family: monospace; }
+pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+</style>
+</head>
+<body>
+<h2>NetBackup Log Formatter</h2>
+<p>Paste your raw log below. Click "Format & Download" to split into one entry per line.</p>
+
+<textarea id="input" placeholder="Paste your log here..."></textarea><br><br>
+<button id="formatBtn">Format & Download</button>
+
+<h3>Formatted Output:</h3>
+<pre id="output"></pre>
+
+<script>
+document.getElementById("formatBtn").addEventListener("click", function() {
+    let log = document.getElementById("input").value.trim();
+    if (!log) {
+        alert("Please paste a log first!");
+        return;
+    }
+
+    // Match: Dec 08, 2025 1:27:25 PM
+    let pattern = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2},\s+\d{4}\s+\d{1,2}:\d{2}:\d{2}\s[AP]M\b/g;
+
+    // Insert newline + space before each date match
+    let formatted = log.replace(pattern, "\n $&");
+
+    // Trim and clean up
+    formatted = formatted.trim();
+
+    // Show in browser
+    document.getElementById("output").textContent = formatted;
+
+    // Create downloadable file
+    let blob = new Blob([formatted], { type: "text/plain" });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "formatted_log.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+</script>
+</body>
+</html>
