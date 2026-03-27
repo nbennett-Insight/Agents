@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OneCall Troubleshooting Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-left" aria-hidden="true"></div>
+    <div class="bg-orb orb-right" aria-hidden="true"></div>
+
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">OneCall</p>
+        <h1>Troubleshooting Command Deck</h1>
+        <p class="subtitle">
+          Jump into vendor-specific troubleshooting tools from one place.
+        </p>
+      </header>
+
+      <section class="platform-section" aria-label="Backup platform selector">
+        <h2>Platforms</h2>
+        <div id="platform-buttons" class="button-grid"></div>
+      </section>
+
+      <section class="workspace" aria-live="polite">
+        <article class="platform-panel">
+          <h3 id="active-platform-label">Choose a platform</h3>
+          <p id="active-platform-summary">
+            Select a platform button to load its troubleshooting tools.
+          </p>
+          <div id="tool-groups" class="tool-groups"></div>
+        </article>
+
+        <aside class="notes-panel">
+          <h3>Framework Notes</h3>
+          <ul>
+            <li>All platform data lives in <span class="code-pill">app.js</span>.</li>
+            <li>Each platform maps to tool categories and links.</li>
+            <li>Brand color usage targets an 80/20 split: primary palette first, accents second.</li>
+            <li>Add more platforms by copying one object in the config.</li>
+          </ul>
+        </aside>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
