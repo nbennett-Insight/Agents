@@ -7,7 +7,12 @@ const platformConfig = [
         title: "Agents",
         links: [
           { label: "Cohesity Agent Hub", href: "#" },
-          { label: "Cluster Health Agent", href: "#" }
+          { label: "Cluster Health Agent", href: "#" },
+          {
+            label: "NetBackup Flex Agent",
+            path: "NetBackup > Appliances > Flex",
+            href: "https://m365.cloud.microsoft/chat/?titleId=T_7403f94b-1fb3-9536-8ffc-c8d49b19ef68&source=embedded-builder"
+          }
         ]
       },
       {
@@ -156,7 +161,11 @@ function renderToolGroups(platform) {
     group.links.forEach((item) => {
       const listItem = document.createElement("li");
       const link = document.createElement("a");
-      link.textContent = item.label;
+      if (item.path) {
+        link.textContent = `${item.path} > ${item.label}`;
+      } else {
+        link.textContent = item.label;
+      }
       link.href = item.href;
       link.target = "_blank";
       link.rel = "noopener noreferrer";

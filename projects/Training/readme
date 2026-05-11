@@ -1,0 +1,11 @@
+https://anthropic.skilljar.com/introduction-to-agent-skills/434527
+
+Creating a Skill
+
+We'll build a personal skill that teaches Claude how to write PR descriptions in a consistent format. Since it's a personal skill, it lives in your home directory and works across all your projects.
+
+First, create a directory for your skill inside the skills folder. The directory name should match your skill name:
+
+mkdir -p ~/.claude/skills/pr-description
+
+
