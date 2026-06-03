@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import posixpath
@@ -553,6 +554,126 @@ def parse_network_details(root: Path) -> dict[str, Any]:
     }
 
 
+def parse_hardware_disk_failures(root: Path) -> list[dict[str, str]]:
+    # ASC logs may contain disk health in JSON snippets or table-like lines.
+    candidate_files: list[Path] = []
+
+    autosupport_file = root / "var" / "log" / "asc" / "autosupport" / "asc_monitor.log"
+    if autosupport_file.exists() and autosupport_file.is_file():
+        candidate_files.append(autosupport_file)
+
+    app_vxul_dir = root / "var" / "log" / "asc" / "app_vxul"
+    if app_vxul_dir.exists() and app_vxul_dir.is_dir():
+        candidate_files.extend(sorted(app_vxul_dir.glob("*.log"))[:30])
+
+    if not candidate_files:
+        return []
+
+    failed_disks: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    block_pattern = re.compile(
+        r'"id"\s*:\s*"(?P<disk_id>Controller\s+\d+\s+Enclosure\s+\d+\s+Disk\s+\d+)"\s*,\s*"properties"\s*:\s*\{(?P<props>[^{}]{1,1800})\}',
+        re.IGNORECASE,
+    )
+    serial_pattern = re.compile(r'"Serial Number"\s*:\s*"(?P<serial>[^"]+)"', re.IGNORECASE)
+    state_pattern = re.compile(r'"State"\s*:\s*"(?P<state>[^"]+)"', re.IGNORECASE)
+    status_pattern = re.compile(r'"Status"\s*:\s*"(?P<status>[^"]+)"', re.IGNORECASE)
+    fw_pattern = re.compile(r'"Firmware Version"\s*:\s*"(?P<fw>[^"]+)"', re.IGNORECASE)
+
+    for src in candidate_files:
+        text = read_text_limited(src, max_bytes=5_000_000)
+        if not text:
+            continue
+
+        for m in block_pattern.finditer(text):
+            disk_id = m.group("disk_id").strip()
+            props = m.group("props")
+
+            state = "unknown"
+            status = "unknown"
+            serial = "unknown"
+            firmware = "unknown"
+
+            m_state = state_pattern.search(props)
+            if m_state:
+                state = m_state.group("state").strip()
+
+            m_status = status_pattern.search(props)
+            if m_status:
+                status = m_status.group("status").strip()
+
+            m_serial = serial_pattern.search(props)
+            if m_serial:
+                serial = m_serial.group("serial").strip()
+
+            m_fw = fw_pattern.search(props)
+            if m_fw:
+                firmware = m_fw.group("fw").strip()
+
+            if state.lower() != "failed":
+                continue
+
+            key = f"{disk_id}::{serial}"
+            if key in seen:
+                continue
+            seen.add(key)
+
+            failed_disks.append(
+                {
+                    "disk_id": disk_id,
+                    "serial_number": serial,
+                    "state": state,
+                    "status": status,
+                    "firmware": firmware,
+                    "source": src.relative_to(root).as_posix(),
+                }
+            )
+
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("||"):
+                continue
+            if "Controller" not in stripped or "Disk" not in stripped:
+                continue
+            if "| Failed |" not in stripped and not stripped.endswith("| Failed | |"):
+                continue
+
+            cols = [c.strip() for c in stripped.strip("|").split("|")]
+            if not cols:
+                continue
+
+            disk_id = cols[0]
+            serial = "unknown"
+            firmware = "unknown"
+            status = "unknown"
+            for c in cols:
+                if re.fullmatch(r"[A-Z0-9]{10,}", c):
+                    serial = c
+                if re.fullmatch(r"[A-Z0-9]{4}", c):
+                    firmware = c
+            if len(cols) > 2:
+                status = cols[2]
+
+            key = f"{disk_id}::{serial}"
+            if key in seen:
+                continue
+            seen.add(key)
+
+            failed_disks.append(
+                {
+                    "disk_id": disk_id,
+                    "serial_number": serial,
+                    "state": "Failed",
+                    "status": status,
+                    "firmware": firmware,
+                    "source": src.relative_to(root).as_posix(),
+                }
+            )
+
+    return failed_disks[:80]
+
+
 def parse_failed_components(root: Path, instance_details: dict[str, Any], network_details: dict[str, Any]) -> list[dict[str, str]]:
     alerts: list[dict[str, str]] = []
 
@@ -603,6 +724,20 @@ def parse_failed_components(root: Path, instance_details: dict[str, Any], networ
                         }
                     )
                     break
+
+    for failed_disk in parse_hardware_disk_failures(root):
+        alerts.append(
+            {
+                "severity": "critical",
+                "component": "hardware-disk",
+                "message": (
+                    f"{failed_disk['disk_id']} state={failed_disk['state']}, "
+                    f"status={failed_disk['status']}, fw={failed_disk['firmware']}, "
+                    f"serial={failed_disk['serial_number']} "
+                    f"(source={failed_disk['source']})"
+                ),
+            }
+        )
 
     deduped: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -735,6 +870,7 @@ def analyze(root: Path, bundle_metadata: BundleMetadata) -> AnalysisResult:
     instances = parse_podman_instances(root)
     network = parse_network_details(root)
     failed_alerts = parse_failed_components(root, instances, network)
+    hardware_disk_failures = sum(1 for a in failed_alerts if a.get("component") == "hardware-disk")
 
     if system_serial:
         notable_findings.append("System serial number extracted.")
@@ -744,6 +880,8 @@ def analyze(root: Path, bundle_metadata: BundleMetadata) -> AnalysisResult:
         )
     if failed_alerts:
         notable_findings.append(f"Generated {len(failed_alerts)} component alerts/warnings.")
+    if hardware_disk_failures:
+        notable_findings.append(f"Detected {hardware_disk_failures} failed hardware disk alerts from ASC logs.")
 
     return AnalysisResult(
         analyzed_at_utc=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -766,6 +904,221 @@ def analyze(root: Path, bundle_metadata: BundleMetadata) -> AnalysisResult:
         network_details=network,
         failed_component_alerts=failed_alerts,
     )
+
+
+def _alert_source_and_message(alert: dict[str, str]) -> tuple[str, str]:
+        message = alert.get("message", "")
+        m = re.search(r"\s*\(source=([^\)]+)\)\s*$", message)
+        if not m:
+                return "", message
+        source = m.group(1).strip()
+        clean_message = message[: m.start()].rstrip()
+        return source, clean_message
+
+
+def render_html_report(payload: dict[str, Any], obfuscate: bool) -> str:
+        bundle_meta = payload["bundle_metadata"]
+        disk = payload["disk_io_summary"]
+        instances = payload["instance_details"]
+        network = payload["network_details"]
+        alerts = payload["failed_component_alerts"]
+
+        alert_rows: list[str] = []
+        sources: list[str] = []
+
+        for alert in alerts:
+                source, clean_message = _alert_source_and_message(alert)
+                if source:
+                        sources.append(source)
+                severity = str(alert.get("severity", "")).upper()
+                alert_rows.append(
+                        "<tr>"
+                        f"<td>{html.escape(severity)}</td>"
+                        f"<td>{html.escape(str(alert.get('component', '')))}</td>"
+                        f"<td>{html.escape(clean_message)}</td>"
+                        f"<td>{html.escape(source or '-')}</td>"
+                        "</tr>"
+                )
+
+        disk_source = str(disk.get("source") or "")
+        if disk_source:
+                sources.append(disk_source)
+
+        unique_sources = sorted(set(sources))
+        source_rows = "".join(f"<li>{html.escape(s)}</li>" for s in unique_sources)
+
+        issue_rows = "".join(
+                "<tr>"
+                f"<td>{int(issue.get('count', 0))}</td>"
+                f"<td>{html.escape(str(issue.get('pattern', '')))}</td>"
+                "</tr>"
+                for issue in payload.get("top_issue_patterns", [])
+        )
+
+        finding_rows = "".join(
+                f"<li>{html.escape(str(finding))}</li>" for finding in payload.get("notable_findings", [])
+        )
+
+        disk_rows = "".join(
+                "<tr>"
+                f"<td>{html.escape(str(d.get('device', '')))}</td>"
+                f"<td>{int(d.get('total_io_ops', 0))}</td>"
+                f"<td>{int(d.get('reads_completed', 0))}</td>"
+                f"<td>{int(d.get('writes_completed', 0))}</td>"
+                f"<td>{int(d.get('time_spent_doing_io_ms', 0))}</td>"
+                "</tr>"
+                for d in disk.get("top_devices_by_io", [])
+        )
+
+        container_rows = "".join(
+                "<tr>"
+                f"<td>{html.escape(str(c.get('name', '')))}</td>"
+                f"<td>{html.escape(str(c.get('cpu_percent', '')))}</td>"
+                f"<td>{html.escape(str(c.get('mem_usage_limit', '')))}</td>"
+                f"<td>{html.escape(str(c.get('mem_percent', '')))}</td>"
+                "</tr>"
+                for c in instances.get("top_containers_by_cpu", [])
+        )
+
+        interface_rows = "".join(
+                "<tr>"
+                f"<td>{html.escape(str(i.get('name', '')))}</td>"
+                f"<td>{html.escape(str(i.get('state', '')))}</td>"
+                f"<td>{html.escape(', '.join(i.get('ipv4', []) or ['none']))}</td>"
+                "</tr>"
+                for i in network.get("interfaces", [])[:20]
+        )
+
+        html_doc = f"""<!doctype html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"utf-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <title>NetBackup Flex Support Bundle Analysis</title>
+    <style>
+        :root {{
+            --bg: #f6f8fb;
+            --panel: #ffffff;
+            --ink: #1f2937;
+            --muted: #6b7280;
+            --line: #d7dee9;
+            --accent: #0f766e;
+            --warn: #b45309;
+            --crit: #b91c1c;
+            --ok: #166534;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{
+            margin: 0;
+            font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--ink);
+            background: radial-gradient(circle at top left, #e7f2ff, var(--bg) 45%);
+        }}
+        .wrap {{ max-width: 1200px; margin: 24px auto; padding: 0 16px 32px; }}
+        .hero {{
+            background: linear-gradient(120deg, #0f766e 0%, #155e75 100%);
+            color: #fff;
+            border-radius: 14px;
+            padding: 18px 20px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+        }}
+        .hero h1 {{ margin: 0 0 8px; font-size: 24px; }}
+        .hero p {{ margin: 4px 0; opacity: 0.95; }}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin: 14px 0;
+        }}
+        .card {{
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px 14px;
+            box-shadow: 0 2px 6px rgba(2, 6, 23, 0.05);
+        }}
+        .k {{ font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }}
+        .v {{ font-size: 20px; margin-top: 4px; }}
+        h2 {{ margin: 22px 0 10px; font-size: 18px; }}
+        table {{ width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }}
+        th, td {{ text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }}
+        th {{ background: #eef3f8; font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; color: #334155; }}
+        tr:last-child td {{ border-bottom: none; }}
+        ul {{ margin: 8px 0; padding-left: 20px; }}
+        .pill {{ display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; border: 1px solid var(--line); }}
+        .crit {{ color: var(--crit); border-color: #fecaca; background: #fef2f2; }}
+        .warn {{ color: var(--warn); border-color: #fde68a; background: #fffbeb; }}
+        .ok {{ color: var(--ok); border-color: #bbf7d0; background: #f0fdf4; }}
+    </style>
+</head>
+<body>
+    <div class=\"wrap\">
+        <section class=\"hero\">
+            <h1>NetBackup Flex Support Bundle Analysis</h1>
+            <p><strong>Analyzed:</strong> {html.escape(str(payload.get('analyzed_at_utc', '')))}</p>
+            <p><strong>Bundle:</strong> {html.escape(str(bundle_meta.get('bundle_name', '')))}</p>
+            <p><strong>Appliance:</strong> {html.escape(str(bundle_meta.get('appliance') or 'unknown'))}</p>
+            <p><strong>Obfuscated Output:</strong> {'enabled' if obfuscate else 'disabled'}</p>
+        </section>
+
+        <div class=\"grid\">
+            <div class=\"card\"><div class=\"k\">Files Indexed</div><div class=\"v\">{int(payload.get('total_files_indexed', 0))}</div></div>
+            <div class=\"card\"><div class=\"k\">Files Scanned</div><div class=\"v\">{int(payload.get('files_scanned', 0))}</div></div>
+            <div class=\"card\"><div class=\"k\">Error-like Lines</div><div class=\"v\">{int(payload.get('error_lines_count', 0))}</div></div>
+            <div class=\"card\"><div class=\"k\">Warning-like Lines</div><div class=\"v\">{int(payload.get('warning_lines_count', 0))}</div></div>
+            <div class=\"card\"><div class=\"k\">Container Count</div><div class=\"v\">{int(instances.get('container_count', 0))}</div></div>
+            <div class=\"card\"><div class=\"k\">Alert Count</div><div class=\"v\">{len(alerts)}</div></div>
+        </div>
+
+        <h2>Notable Findings</h2>
+        <div class=\"card\"><ul>{finding_rows or '<li>None</li>'}</ul></div>
+
+        <h2>Failed Components And Alerts</h2>
+        <table>
+            <thead><tr><th>Severity</th><th>Component</th><th>Message</th><th>Source</th></tr></thead>
+            <tbody>{''.join(alert_rows) or '<tr><td colspan="4">No component failure alerts detected</td></tr>'}</tbody>
+        </table>
+
+        <h2>Source Index</h2>
+        <div class=\"card\"><ul>{source_rows or '<li>No explicit sources found</li>'}</ul></div>
+
+        <h2>Disk I/O Summary</h2>
+        <div class=\"card\">
+            <p><strong>Source:</strong> {html.escape(str(disk.get('source') or 'not found'))}</p>
+            <p><strong>Device Count:</strong> {int(disk.get('device_count', 0))}</p>
+        </div>
+        <table>
+            <thead><tr><th>Device</th><th>Total Ops</th><th>Reads</th><th>Writes</th><th>I/O ms</th></tr></thead>
+            <tbody>{disk_rows or '<tr><td colspan="5">No disk I/O entries parsed</td></tr>'}</tbody>
+        </table>
+
+        <h2>Instance Details</h2>
+        <table>
+            <thead><tr><th>Name</th><th>CPU</th><th>Memory</th><th>Mem %</th></tr></thead>
+            <tbody>{container_rows or '<tr><td colspan="4">No container stats found</td></tr>'}</tbody>
+        </table>
+
+        <h2>Network Details</h2>
+        <div class=\"card\">
+            <p><strong>Default Route:</strong> {html.escape(str(network.get('default_route') or 'not found'))}</p>
+            <p><strong>mgmt0 Link Speed:</strong> {html.escape(str(network.get('mgmt0_link_speed') or 'unknown'))}</p>
+            <p><strong>mgmt0 Link Detected:</strong> {html.escape(str(network.get('mgmt0_link_detected') or 'unknown'))}</p>
+        </div>
+        <table>
+            <thead><tr><th>Interface</th><th>State</th><th>IPv4</th></tr></thead>
+            <tbody>{interface_rows or '<tr><td colspan="3">No interface details parsed</td></tr>'}</tbody>
+        </table>
+
+        <h2>Top Issue Patterns</h2>
+        <table>
+            <thead><tr><th>Count</th><th>Pattern</th></tr></thead>
+            <tbody>{issue_rows or '<tr><td colspan="2">None</td></tr>'}</tbody>
+        </table>
+    </div>
+</body>
+</html>
+"""
+        return html_doc
 
 
 def write_outputs(result: AnalysisResult, output_dir: Path, obfuscate: bool) -> None:
@@ -901,6 +1254,9 @@ def write_outputs(result: AnalysisResult, output_dir: Path, obfuscate: bool) -> 
 
     report_path = output_dir / "report.md"
     report_path.write_text("\n".join(report_lines) + "\n", encoding="utf-8")
+
+    html_path = output_dir / "report.html"
+    html_path.write_text(render_html_report(payload, obfuscate=obfuscate), encoding="utf-8")
 
 
 def build_output_dir(bundle_path: Path, output_arg: str | None) -> Path:
