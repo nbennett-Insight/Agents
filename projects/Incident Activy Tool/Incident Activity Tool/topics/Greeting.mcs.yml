@@ -20,9 +20,9 @@ beginDialog:
       id: sendMessage_abmysR
       activity:
         text:
-          - Hello, how can I help you today?
+          - Please enter an INC number to get started with a summary (example: INC1234567). If you already exported a PDF, you can upload it now.
         speak:
-          - Hello, <break strength="medium" /> how can I help?
+          - Please enter an incident number to get started with a summary. If you already exported a PDF, you can upload it now.
 
     - kind: CancelAllDialogs
       id: cancelAllDialogs_01At22
