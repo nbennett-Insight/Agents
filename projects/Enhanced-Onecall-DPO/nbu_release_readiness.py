@@ -486,23 +486,38 @@ def build_output_rows(version: str, infra: dict) -> list[dict]:
     rows = []
     run_ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    primary_servers = [
+        s["hostname"] for s in infra["servers"] if s["role"] == "MASTER"
+    ]
+    media_servers = [
+        s["hostname"] for s in infra["servers"] if s["role"] == "MEDIA"
+    ]
+    primary_version = next(
+        (s["version"] for s in infra["servers"] if s["role"] == "MASTER"),
+        infra["current_version"],
+    )
+
     for feat in catalog["features"]:
         relevance, reason = score_feature(feat, infra)
         rows.append(
             {
-                "run_timestamp":    run_ts,
-                "site_company":     infra["company"],
-                "master_server":    infra["master_server"],
-                "current_version":  infra["current_version"],
-                "target_version":   version,
-                "feature_id":       feat["id"],
-                "feature_title":    feat["title"],
-                "category":         feat["category"],
-                "impact":           feat["impact"],
-                "site_relevance":   relevance,
-                "relevance_reason": reason,
-                "description":      feat["description"],
-                "doc_url":          feat["url"],
+                "run_timestamp":      run_ts,
+                "site_company":       infra["company"],
+                "primary_server":     "; ".join(primary_servers),
+                "primary_version":    primary_version,
+                "media_servers":      "; ".join(media_servers),
+                "media_server_count": len(media_servers),
+                "total_server_count": len(infra["servers"]),
+                "current_version":    infra["current_version"],
+                "target_version":     version,
+                "feature_id":         feat["id"],
+                "feature_title":      feat["title"],
+                "category":           feat["category"],
+                "impact":             feat["impact"],
+                "site_relevance":     relevance,
+                "relevance_reason":   reason,
+                "description":        feat["description"],
+                "doc_url":            feat["url"],
                 "policy_types_on_site": "; ".join(
                     f"{k}:{v}" for k, v in sorted(infra["policy_types"].items())
                 ),
@@ -512,7 +527,6 @@ def build_output_rows(version: str, infra: dict) -> list[dict]:
                 "has_k8s":    infra["has_kubernetes"],
                 "has_slp":    infra["has_slp"],
                 "job_count":  infra["job_count"],
-                "server_count": len(infra["servers"]),
             }
         )
     return rows
@@ -534,9 +548,16 @@ def write_json(rows: list[dict], infra: dict, version: str, path: Path) -> None:
             "target_version": version,
             "release_notes_url": RELEASE_CATALOG[version]["features_url"],
             "site_company": infra["company"],
-            "master_server": infra["master_server"],
+            "primary_servers": [
+                {"hostname": s["hostname"], "version": s["version"]}
+                for s in infra["servers"] if s["role"] == "MASTER"
+            ],
+            "media_servers": [
+                {"hostname": s["hostname"], "version": s["version"]}
+                for s in infra["servers"] if s["role"] == "MEDIA"
+            ],
             "current_version": infra["current_version"],
-            "server_count": len(infra["servers"]),
+            "total_server_count": len(infra["servers"]),
             "job_count": infra["job_count"],
             "policy_types": infra["policy_types"],
             "storage_profile": {
@@ -591,10 +612,13 @@ def main():
 
     print(f"[1/3] Reading infra from: {xlsx_path.name}")
     infra = read_infra_from_excel(str(xlsx_path))
-    print(
-        f"      Site : {infra['company']} | Master: {infra['master_server']} | "
-        f"Version: {infra['current_version']} | Jobs: {infra['job_count']}"
-    )
+    primaries = [s for s in infra["servers"] if s["role"] == "MASTER"]
+    medias    = [s for s in infra["servers"] if s["role"] == "MEDIA"]
+    print(f"      Site    : {infra['company']} | Version: {infra['current_version']} | Jobs: {infra['job_count']}")
+    for s in primaries:
+        print(f"      Primary : {s['hostname']}  (v{s['version']})")
+    for s in medias:
+        print(f"      Media   : {s['hostname']}  (v{s['version']})")
     print(f"      Policy types: {infra['policy_types']}")
 
     print(f"[2/3] Evaluating {len(RELEASE_CATALOG[args.version]['features'])} "

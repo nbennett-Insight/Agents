@@ -1,12 +1,31 @@
 {
   "metadata": {
-    "generated_at": "2026-08-10T17:23:00Z",
+    "generated_at": "2026-08-10T18:01:20Z",
     "target_version": "11.2",
     "release_notes_url": "https://docs.cohesity.com/docs/netbackup/11.2/103228346-171368441-0/v172450863-171368441",
     "site_company": "CBC Companies",
-    "master_server": "nbuapri01ulnp.cbc.local",
+    "primary_servers": [
+      {
+        "hostname": "nbuapri01ulnp.cbc.local",
+        "version": "10.5.0.1"
+      }
+    ],
+    "media_servers": [
+      {
+        "hostname": "med01mlnp.cbc.local",
+        "version": "10.5.0.1"
+      },
+      {
+        "hostname": "nbuamed01ulnp.cbc.local",
+        "version": "10.5.0.1"
+      },
+      {
+        "hostname": "nbuamed02ulnp.cbc.local",
+        "version": "10.5.0.1"
+      }
+    ],
     "current_version": "10.5.0.1",
-    "server_count": 4,
+    "total_server_count": 4,
     "job_count": 27714,
     "policy_types": {
       "VMware": 1679,
@@ -29,9 +48,13 @@
   },
   "features": [
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "cohesity-terminology",
@@ -48,13 +71,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "restful-apis",
@@ -71,13 +97,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "stig-msdp",
@@ -94,13 +123,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "archive-tier-verification",
@@ -117,13 +149,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "msdp-dedup-performance",
@@ -140,13 +175,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "helios-integration",
@@ -163,13 +201,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "worm-local-cache",
@@ -186,13 +227,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "accelerator-oci",
@@ -209,13 +253,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "dynamic-multistream",
@@ -232,13 +279,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "cloud-autoresume",
@@ -255,13 +305,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "cloud-scale-enhancements",
@@ -278,13 +331,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "parallel-restore-cloud-vm",
@@ -301,13 +357,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "azure-deny-all",
@@ -324,13 +383,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "file-hash-threat-detection",
@@ -347,13 +409,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "job-resiliency-oracle-sql",
@@ -370,13 +435,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "kvm-enhancements",
@@ -393,13 +461,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "sap-hana-intelligent-policy",
@@ -416,13 +487,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "role-elevation",
@@ -439,13 +513,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "kms-webui",
@@ -462,13 +539,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "troubleshooter-webui",
@@ -485,13 +565,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "eeb-management-webui",
@@ -508,13 +591,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "exchange-recovery-webui",
@@ -531,13 +617,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "log-collection-webui",
@@ -554,13 +643,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "backup-selections-tab",
@@ -577,13 +669,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "job-priority-activity-monitor",
@@ -600,13 +695,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "enhanced-report-time",
@@ -623,13 +721,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "mongodb-ops-manager",
@@ -646,13 +747,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "java-ui-eol",
@@ -669,13 +773,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "k8s-flexible-version",
@@ -692,13 +799,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "shutdown-commands-deprecated",
@@ -715,13 +825,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "support-additions-11.2",
@@ -738,13 +851,16 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     },
     {
-      "run_timestamp": "2026-08-10T17:23:00Z",
+      "run_timestamp": "2026-08-10T18:01:20Z",
       "site_company": "CBC Companies",
-      "master_server": "nbuapri01ulnp.cbc.local",
+      "primary_server": "nbuapri01ulnp.cbc.local",
+      "primary_version": "10.5.0.1",
+      "media_servers": "med01mlnp.cbc.local; nbuamed01ulnp.cbc.local; nbuamed02ulnp.cbc.local",
+      "media_server_count": 3,
+      "total_server_count": 4,
       "current_version": "10.5.0.1",
       "target_version": "11.2",
       "feature_id": "cloud-config-update",
@@ -761,8 +877,7 @@
       "has_tape": true,
       "has_k8s": true,
       "has_slp": true,
-      "job_count": 27714,
-      "server_count": 4
+      "job_count": 27714
     }
   ]
 }
