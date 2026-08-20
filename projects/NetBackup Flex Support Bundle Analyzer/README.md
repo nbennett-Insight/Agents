@@ -8,10 +8,12 @@ Then it scans the extracted data for NetBackup and Flex related signals, includi
 
 - Appliance and OS metadata
 - System serial number
+- Software and firmware version report card with device name, hostname, and parsed IPs
 - Disk I/O summary from `proc/diskstats`
 - Container and pod instance details from podman command outputs
 - Network interface and route details
 - Failed component alerts and warnings
+- Typical hardware datacollect problem checks, including bad HDD/SSD, RAM ECC/MCE, CRC/link errors, time shifts, dmesg kernel issues, warnings, and errors
 - NetBackup/Flex related files
 - Error and warning lines in logs
 - Top recurring issue patterns
@@ -68,8 +70,11 @@ The tool writes:
 
 - `summary.json`: structured machine-readable results
 - `report.md`: human-readable analysis report
+- `report.html`: browser-friendly review report with a summary dashboard, collapsible sections, severity badges, copy buttons, and print-friendly CSS
 
-When `--obfuscate` is used, sensitive values are redacted in both files:
+`summary.json` includes structured `typical_problem_findings` and `report_card` sections that can be reused later for CSV/XLSX or Power BI import work.
+
+When `--obfuscate` is used, sensitive values are redacted in all report outputs:
 
 - IPv4 addresses
 - MAC addresses

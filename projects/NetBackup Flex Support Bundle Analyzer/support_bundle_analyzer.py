@@ -9,7 +9,7 @@ import re
 import tarfile
 from collections import Counter
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BufferedReader
 from pathlib import Path
 from typing import Any, Iterable
@@ -43,6 +43,7 @@ MAX_FILES_TO_SCAN = 2500
 MAX_FILE_BYTES = 1_000_000
 MAX_LINES_PER_FILE = 6000
 TOP_ISSUES_COUNT = 25
+MAX_PROBLEM_SAMPLES = 8
 WINDOWS_INVALID_CHARS = '<>:"/\\|?*'
 WINDOWS_RESERVED_NAMES = {
     "CON",
@@ -118,6 +119,8 @@ class AnalysisResult:
     instance_details: dict[str, Any]
     network_details: dict[str, Any]
     failed_component_alerts: list[dict[str, str]]
+    typical_problem_findings: list[dict[str, Any]]
+    report_card: dict[str, Any]
 
 
 def parse_bundle_name(bundle_path: Path) -> BundleMetadata:
@@ -750,6 +753,329 @@ def parse_failed_components(root: Path, instance_details: dict[str, Any], networ
     return deduped[:150]
 
 
+TYPICAL_PROBLEM_PATTERNS = [
+    (
+        "bad_hdd_ssd",
+        "critical",
+        "Bad HDD/SSD",
+        re.compile(
+            r"\b(SMART.*fail|medium error|media error|uncorrectable|I/O error|Buffer I/O error|blk_update_request|critical warning|predictive failure)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "ram_ecc",
+        "critical",
+        "RAM ECC/MCE",
+        re.compile(r"\b(EDAC|MCE|Machine check|memory error|ECC error|uncorrected error|corrected error)\b", re.IGNORECASE),
+    ),
+    (
+        "crc_error",
+        "warning",
+        "CRC / Link Error",
+        re.compile(r"\b(CRC|link reset|hard resetting link|ata\d+.*error|SAS.*error|PCIe Bus Error)\b", re.IGNORECASE),
+    ),
+    (
+        "time_shift",
+        "warning",
+        "Time Shift",
+        re.compile(r"\b(Time has been changed|time shift|clock.*jump|Clocksource.*unstable|chrony.*(?:step|slew)|NTP.*(?:step|offset))\b", re.IGNORECASE),
+    ),
+    (
+        "dmesg_issue",
+        "critical",
+        "dmesg Kernel Issue",
+        re.compile(r"\b(BUG:|Oops|kernel panic|Call Trace|hung task|blocked for more than|segfault|soft lockup|hard lockup)\b", re.IGNORECASE),
+    ),
+    (
+        "warnings",
+        "warning",
+        "Warnings",
+        re.compile(r"\b(warn|warning|degraded|timeout|timed out)\b", re.IGNORECASE),
+    ),
+    (
+        "errors",
+        "critical",
+        "Errors",
+        re.compile(r"\b(error|failed|failure|fatal|critical)\b", re.IGNORECASE),
+    ),
+]
+
+
+def _problem_record(category: str, label: str, severity: str) -> dict[str, Any]:
+    return {
+        "category": category,
+        "label": label,
+        "severity": severity,
+        "count": 0,
+        "samples": [],
+    }
+
+
+def _add_problem_sample(records: dict[str, dict[str, Any]], category: str, label: str, severity: str, source: str, line: str) -> None:
+    record = records.setdefault(category, _problem_record(category, label, severity))
+    record["count"] += 1
+    samples = record["samples"]
+    sample = {"source": source, "line": line.strip()[:500]}
+    if len(samples) < MAX_PROBLEM_SAMPLES and sample not in samples:
+        samples.append(sample)
+
+
+def _scan_problem_file(records: dict[str, dict[str, Any]], root: Path, path: Path, max_lines: int = MAX_LINES_PER_FILE) -> None:
+    rel = path.relative_to(root).as_posix()
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line_number, line in enumerate(f, start=1):
+                if line_number > max_lines:
+                    break
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                for category, severity, label, pattern in TYPICAL_PROBLEM_PATTERNS:
+                    if pattern.search(stripped):
+                        _add_problem_sample(records, category, label, severity, f"{rel}:{line_number}", stripped)
+    except OSError:
+        return
+
+
+def _scan_smart_health(records: dict[str, dict[str, Any]], root: Path, smart_path: Path) -> None:
+    rel = smart_path.relative_to(root).as_posix()
+    text = read_text_limited(smart_path)
+    if not text:
+        return
+
+    interesting_fields = [
+        "SMART overall-health self-assessment test result",
+        "Critical Warning",
+        "Media and Data Integrity Errors",
+        "Error Information Log Entries",
+        "Reallocated_Sector_Ct",
+        "Current_Pending_Sector",
+        "Offline_Uncorrectable",
+        "UDMA_CRC_Error_Count",
+    ]
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not any(field.lower() in stripped.lower() for field in interesting_fields):
+            continue
+        low = stripped.lower()
+        if "passed" in low or stripped.endswith(":    0") or stripped.endswith(":      0") or stripped.endswith(":    0x00"):
+            continue
+        category = "crc_error" if "crc" in low else "bad_hdd_ssd"
+        label = "CRC / Link Error" if category == "crc_error" else "Bad HDD/SSD"
+        severity = "warning" if category == "crc_error" else "critical"
+        _add_problem_sample(records, category, label, severity, rel, stripped)
+
+
+def parse_typical_problem_findings(root: Path, failed_alerts: list[dict[str, str]]) -> list[dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+
+    for alert in failed_alerts:
+        if alert.get("component") == "hardware-disk":
+            source, clean_message = _alert_source_and_message(alert)
+            _add_problem_sample(
+                records,
+                "bad_hdd_ssd",
+                "Bad HDD/SSD",
+                "critical",
+                source or "failed_component_alerts",
+                clean_message,
+            )
+
+    candidate_files = [
+        root / "sos_commands" / "kernel" / "dmesg",
+        root / "sos_commands" / "kernel" / "dmesg_-T",
+        root / "var" / "log" / "messages",
+        root / "var" / "log" / "secure",
+        root / "var" / "log" / "kdump.log",
+    ]
+    for path in candidate_files:
+        if path.exists() and path.is_file() and is_probably_text(path):
+            _scan_problem_file(records, root, path)
+
+    smart_dirs = [root / "sos_commands" / "nvme", root / "sos_commands" / "ata"]
+    for smart_dir in smart_dirs:
+        if not smart_dir.exists() or not smart_dir.is_dir():
+            continue
+        for smart_path in sorted(smart_dir.glob("smartctl*")):
+            if smart_path.is_file() and "-j" not in smart_path.name:
+                _scan_smart_health(records, root, smart_path)
+
+    severity_order = {"critical": 0, "warning": 1, "info": 2}
+    return sorted(
+        records.values(),
+        key=lambda r: (severity_order.get(str(r["severity"]), 9), str(r["label"])),
+    )
+
+
+def _parse_dmidecode_block(text: str, title: str) -> dict[str, str]:
+    m = re.search(rf"^\s*{re.escape(title)}\s*$(.*?)(?:^Handle\s+0x|\Z)", text, re.MULTILINE | re.DOTALL)
+    if not m:
+        return {}
+    block: dict[str, str] = {}
+    for line in m.group(1).splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if key and value:
+            block[key] = value
+    return block
+
+
+def _read_release_key_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    text = read_text_limited(path)
+    for line in text.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip('"')
+    return values
+
+
+def _smart_field(text: str, field: str) -> str | None:
+    m = re.search(rf"^\s*{re.escape(field)}:\s*(.+?)\s*$", text, re.MULTILINE)
+    if not m:
+        return None
+    return m.group(1).strip()
+
+
+def build_report_card(
+    root: Path,
+    bundle_metadata: BundleMetadata,
+    host_name: str | None,
+    os_release: str | None,
+    system_serial: str | None,
+    network_details: dict[str, Any],
+) -> dict[str, Any]:
+    ip_addresses = sorted(
+        {
+            ip
+            for iface in network_details.get("interfaces", [])
+            for ip in iface.get("ipv4", [])
+            if ip
+        }
+    )
+    rows: list[dict[str, str]] = []
+
+    dmidecode = first_existing_file(root, ["sos_commands/hardware/dmidecode"])
+    system_info: dict[str, str] = {}
+    if dmidecode:
+        dmi_text = read_text_limited(dmidecode, max_bytes=5_000_000)
+        system_info = _parse_dmidecode_block(dmi_text, "System Information")
+        bios_info = _parse_dmidecode_block(dmi_text, "BIOS Information")
+        board_info = _parse_dmidecode_block(dmi_text, "Base Board Information")
+
+        if system_info:
+            rows.append(
+                {
+                    "component": "Appliance",
+                    "device_name": system_info.get("Product Name", bundle_metadata.appliance or "unknown"),
+                    "version": system_info.get("Version", "unknown"),
+                    "firmware": "",
+                    "serial": system_info.get("Serial Number", system_serial or "unknown"),
+                    "source": dmidecode.relative_to(root).as_posix(),
+                }
+            )
+        if bios_info:
+            rows.append(
+                {
+                    "component": "BIOS",
+                    "device_name": bios_info.get("Vendor", "BIOS"),
+                    "version": bios_info.get("Version", "unknown"),
+                    "firmware": bios_info.get("Release Date", ""),
+                    "serial": "",
+                    "source": dmidecode.relative_to(root).as_posix(),
+                }
+            )
+        if board_info:
+            rows.append(
+                {
+                    "component": "Baseboard",
+                    "device_name": board_info.get("Product Name", "Baseboard"),
+                    "version": board_info.get("Version", "unknown"),
+                    "firmware": "",
+                    "serial": board_info.get("Serial Number", ""),
+                    "source": dmidecode.relative_to(root).as_posix(),
+                }
+            )
+
+    os_source = first_existing_file(root, ["etc/os-release"])
+    if os_release:
+        rows.append(
+            {
+                "component": "Operating System",
+                "device_name": host_name or bundle_metadata.appliance or "host",
+                "version": os_release,
+                "firmware": "",
+                "serial": system_serial or "",
+                "source": os_source.relative_to(root).as_posix() if os_source else "etc/os-release",
+            }
+        )
+
+    for rel_path, component in [("etc/flex-release", "Flex"), ("etc/vxos-release", "VxOS")]:
+        release_file = root / rel_path
+        if release_file.exists() and release_file.is_file():
+            values = _read_release_key_values(release_file)
+            rows.append(
+                {
+                    "component": component,
+                    "device_name": values.get("product-name", component),
+                    "version": values.get("product-version") or values.get("vxos-core-release") or "unknown",
+                    "firmware": values.get("flex-core-buildtag") or values.get("vxos-core-buildtag") or "",
+                    "serial": system_serial or "",
+                    "source": rel_path,
+                }
+            )
+
+    uname = first_existing_file(root, ["sos_commands/kernel/uname_-a"])
+    if uname:
+        rows.append(
+            {
+                "component": "Kernel",
+                "device_name": host_name or bundle_metadata.appliance or "host",
+                "version": read_text_limited(uname).strip()[:240],
+                "firmware": "",
+                "serial": "",
+                "source": uname.relative_to(root).as_posix(),
+            }
+        )
+
+    for smart_dir in [root / "sos_commands" / "nvme", root / "sos_commands" / "ata"]:
+        if not smart_dir.exists() or not smart_dir.is_dir():
+            continue
+        for smart_path in sorted(smart_dir.glob("smartctl*")):
+            if not smart_path.is_file() or "-j" in smart_path.name:
+                continue
+            text = read_text_limited(smart_path)
+            model = _smart_field(text, "Model Number") or _smart_field(text, "Device Model") or smart_path.name
+            serial = _smart_field(text, "Serial Number") or ""
+            firmware = _smart_field(text, "Firmware Version") or ""
+            health = _smart_field(text, "SMART overall-health self-assessment test result") or ""
+            device_match = re.search(r"\.dev\.([^_]+)", smart_path.name)
+            device = device_match.group(1) if device_match else smart_path.name
+            rows.append(
+                {
+                    "component": "Storage",
+                    "device_name": f"{device} - {model}",
+                    "version": health or "SMART data",
+                    "firmware": firmware,
+                    "serial": serial,
+                    "source": smart_path.relative_to(root).as_posix(),
+                }
+            )
+
+    device_name = system_info.get("Product Name") or bundle_metadata.appliance or host_name or "unknown"
+    return {
+        "device_name": device_name,
+        "hostname": host_name,
+        "ip_addresses": ip_addresses,
+        "software_firmware_versions": rows[:120],
+    }
+
+
 class Obfuscator:
     def __init__(self) -> None:
         self.maps: dict[str, dict[str, str]] = {
@@ -865,11 +1191,15 @@ def analyze(root: Path, bundle_metadata: BundleMetadata) -> AnalysisResult:
             f"Scan capped at {MAX_FILES_TO_SCAN} text files to keep runtime predictable."
         )
 
+    host_name = load_hostname(root)
+    os_release = load_os_release(root)
     system_serial = extract_system_serial(root)
     disk_io = parse_disk_io(root)
     instances = parse_podman_instances(root)
     network = parse_network_details(root)
     failed_alerts = parse_failed_components(root, instances, network)
+    typical_problems = parse_typical_problem_findings(root, failed_alerts)
+    report_card = build_report_card(root, bundle_metadata, host_name, os_release, system_serial, network)
     hardware_disk_failures = sum(1 for a in failed_alerts if a.get("component") == "hardware-disk")
 
     if system_serial:
@@ -882,16 +1212,18 @@ def analyze(root: Path, bundle_metadata: BundleMetadata) -> AnalysisResult:
         notable_findings.append(f"Generated {len(failed_alerts)} component alerts/warnings.")
     if hardware_disk_failures:
         notable_findings.append(f"Detected {hardware_disk_failures} failed hardware disk alerts from ASC logs.")
+    if typical_problems:
+        notable_findings.append(f"Detected {len(typical_problems)} typical hardware datacollect problem categories.")
 
     return AnalysisResult(
-        analyzed_at_utc=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        analyzed_at_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         bundle_metadata=bundle_metadata,
         extracted_root=str(root),
         total_files_indexed=len(files),
         files_scanned=scanned,
         netbackup_related_files=sorted(set(netbackup_related_files))[:1500],
-        host_name=load_hostname(root),
-        os_release=load_os_release(root),
+        host_name=host_name,
+        os_release=os_release,
         first_timestamp_seen=first_ts,
         last_timestamp_seen=last_ts,
         error_lines_count=error_count,
@@ -903,222 +1235,422 @@ def analyze(root: Path, bundle_metadata: BundleMetadata) -> AnalysisResult:
         instance_details=instances,
         network_details=network,
         failed_component_alerts=failed_alerts,
+        typical_problem_findings=typical_problems,
+        report_card=report_card,
     )
 
 
 def _alert_source_and_message(alert: dict[str, str]) -> tuple[str, str]:
-        message = alert.get("message", "")
-        m = re.search(r"\s*\(source=([^\)]+)\)\s*$", message)
-        if not m:
-                return "", message
-        source = m.group(1).strip()
-        clean_message = message[: m.start()].rstrip()
-        return source, clean_message
+    message = alert.get("message", "")
+    m = re.search(r"\s*\(source=([^\)]+)\)\s*$", message)
+    if not m:
+        return "", message
+    source = m.group(1).strip()
+    clean_message = message[: m.start()].rstrip()
+    return source, clean_message
+
+
+def _html_text(value: Any, default: str = "unknown") -> str:
+    if value is None or value == "":
+        return html.escape(default)
+    return html.escape(str(value))
+
+
+def _html_list(items: Iterable[Any], empty: str = "None") -> str:
+    rows = [f"<li>{_html_text(item)}</li>" for item in items]
+    return "".join(rows) if rows else f"<li>{html.escape(empty)}</li>"
+
+
+def _severity_badge(severity: str) -> str:
+    normalized = severity.lower()
+    if normalized == "critical":
+        label = "Critical"
+        badge_class = "critical"
+    elif normalized == "warning":
+        label = "Warning"
+        badge_class = "warning"
+    else:
+        label = severity.title() if severity else "Info"
+        badge_class = "info"
+    return f'<span class="badge {badge_class}">{html.escape(label)}</span>'
 
 
 def render_html_report(payload: dict[str, Any], obfuscate: bool) -> str:
-        bundle_meta = payload["bundle_metadata"]
-        disk = payload["disk_io_summary"]
-        instances = payload["instance_details"]
-        network = payload["network_details"]
-        alerts = payload["failed_component_alerts"]
+    bundle_meta = payload["bundle_metadata"]
+    disk = payload["disk_io_summary"]
+    instances = payload["instance_details"]
+    network = payload["network_details"]
+    alerts = payload["failed_component_alerts"]
+    top_issues = payload.get("top_issue_patterns", [])
+    findings = payload.get("notable_findings", [])
+    typical_problems = payload.get("typical_problem_findings", [])
+    report_card = payload.get("report_card", {})
+    version_rows = report_card.get("software_firmware_versions", [])
 
-        alert_rows: list[str] = []
-        sources: list[str] = []
+    severity_counts = Counter(str(alert.get("severity", "info")).lower() for alert in alerts)
+    severity_counts.update(str(problem.get("severity", "info")).lower() for problem in typical_problems)
+    critical_count = severity_counts.get("critical", 0)
+    warning_count = severity_counts.get("warning", 0)
+    info_count = len(findings)
 
-        for alert in alerts:
-                source, clean_message = _alert_source_and_message(alert)
-                if source:
-                        sources.append(source)
-                severity = str(alert.get("severity", "")).upper()
-                alert_rows.append(
-                        "<tr>"
-                        f"<td>{html.escape(severity)}</td>"
-                        f"<td>{html.escape(str(alert.get('component', '')))}</td>"
-                        f"<td>{html.escape(clean_message)}</td>"
-                        f"<td>{html.escape(source or '-')}</td>"
-                        "</tr>"
-                )
-
-        disk_source = str(disk.get("source") or "")
-        if disk_source:
-                sources.append(disk_source)
-
-        unique_sources = sorted(set(sources))
-        source_rows = "".join(f"<li>{html.escape(s)}</li>" for s in unique_sources)
-
-        issue_rows = "".join(
-                "<tr>"
-                f"<td>{int(issue.get('count', 0))}</td>"
-                f"<td>{html.escape(str(issue.get('pattern', '')))}</td>"
-                "</tr>"
-                for issue in payload.get("top_issue_patterns", [])
+    alert_copy_lines: list[str] = []
+    alert_rows: list[str] = []
+    sources: list[str] = []
+    for alert in alerts:
+        source, clean_message = _alert_source_and_message(alert)
+        if source:
+            sources.append(source)
+        severity = str(alert.get("severity", "info"))
+        component = str(alert.get("component", ""))
+        alert_copy_lines.append(f"[{severity.upper()}] {component}: {clean_message}" + (f" ({source})" if source else ""))
+        alert_rows.append(
+            "<tr>"
+            f"<td>{_severity_badge(severity)}</td>"
+            f"<td>{_html_text(component)}</td>"
+            f"<td>{_html_text(clean_message)}</td>"
+            f"<td>{_html_text(source, '-')}</td>"
+            "</tr>"
         )
 
-        finding_rows = "".join(
-                f"<li>{html.escape(str(finding))}</li>" for finding in payload.get("notable_findings", [])
-        )
+    disk_source = str(disk.get("source") or "")
+    if disk_source:
+        sources.append(disk_source)
 
-        disk_rows = "".join(
-                "<tr>"
-                f"<td>{html.escape(str(d.get('device', '')))}</td>"
-                f"<td>{int(d.get('total_io_ops', 0))}</td>"
-                f"<td>{int(d.get('reads_completed', 0))}</td>"
-                f"<td>{int(d.get('writes_completed', 0))}</td>"
-                f"<td>{int(d.get('time_spent_doing_io_ms', 0))}</td>"
-                "</tr>"
-                for d in disk.get("top_devices_by_io", [])
-        )
+    source_rows = _html_list(sorted(set(sources)), empty="No explicit sources found")
+    finding_rows = _html_list(findings, empty="No notable findings recorded")
 
-        container_rows = "".join(
-                "<tr>"
-                f"<td>{html.escape(str(c.get('name', '')))}</td>"
-                f"<td>{html.escape(str(c.get('cpu_percent', '')))}</td>"
-                f"<td>{html.escape(str(c.get('mem_usage_limit', '')))}</td>"
-                f"<td>{html.escape(str(c.get('mem_percent', '')))}</td>"
-                "</tr>"
-                for c in instances.get("top_containers_by_cpu", [])
-        )
+    issue_rows = "".join(
+        "<tr>"
+        f"<td>{int(issue.get('count', 0))}</td>"
+        f"<td><code>{_html_text(issue.get('pattern', ''))}</code></td>"
+        "</tr>"
+        for issue in top_issues
+    )
+    issue_copy_text = "\n".join(
+        f"({int(issue.get('count', 0))}) {issue.get('pattern', '')}" for issue in top_issues
+    )
 
-        interface_rows = "".join(
-                "<tr>"
-                f"<td>{html.escape(str(i.get('name', '')))}</td>"
-                f"<td>{html.escape(str(i.get('state', '')))}</td>"
-                f"<td>{html.escape(', '.join(i.get('ipv4', []) or ['none']))}</td>"
-                "</tr>"
-                for i in network.get("interfaces", [])[:20]
-        )
+    disk_rows = "".join(
+        "<tr>"
+        f"<td>{_html_text(d.get('device', ''))}</td>"
+        f"<td>{int(d.get('total_io_ops', 0)):,}</td>"
+        f"<td>{int(d.get('reads_completed', 0)):,}</td>"
+        f"<td>{int(d.get('writes_completed', 0)):,}</td>"
+        f"<td>{int(d.get('time_spent_doing_io_ms', 0)):,}</td>"
+        "</tr>"
+        for d in disk.get("top_devices_by_io", [])
+    )
 
-        html_doc = f"""<!doctype html>
-<html lang=\"en\">
+    container_rows = "".join(
+        "<tr>"
+        f"<td>{_html_text(c.get('name', ''))}</td>"
+        f"<td>{_html_text(c.get('cpu_percent', ''))}</td>"
+        f"<td>{_html_text(c.get('mem_usage_limit', ''))}</td>"
+        f"<td>{_html_text(c.get('mem_percent', ''))}</td>"
+        "</tr>"
+        for c in instances.get("top_containers_by_cpu", [])
+    )
+
+    interface_rows = "".join(
+        "<tr>"
+        f"<td>{_html_text(i.get('name', ''))}</td>"
+        f"<td>{_html_text(i.get('state', ''))}</td>"
+        f"<td>{_html_text(', '.join(i.get('ipv4', []) or ['none']))}</td>"
+        "</tr>"
+        for i in network.get("interfaces", [])[:40]
+    )
+
+    route_copy_text = "\n".join(str(route) for route in network.get("route_sample", []))
+    related_file_rows = _html_list(payload.get("netbackup_related_files", [])[:250], empty="None")
+    unhealthy_rows = _html_list(instances.get("unhealthy_or_stopped_containers", []), empty="None")
+    down_interface_rows = _html_list(network.get("down_or_no_carrier_interfaces", []), empty="None")
+    ip_rows = _html_list(report_card.get("ip_addresses", []), empty="No IPv4 addresses parsed")
+    problem_rows = "".join(
+        "<tr>"
+        f"<td>{_severity_badge(str(problem.get('severity', 'info')))}</td>"
+        f"<td>{_html_text(problem.get('label', ''))}</td>"
+        f"<td>{int(problem.get('count', 0)):,}</td>"
+        "<td><ul>"
+        + "".join(
+            f"<li><strong>{_html_text(sample.get('source', ''))}</strong>: {_html_text(sample.get('line', ''))}</li>"
+            for sample in problem.get("samples", [])
+        )
+        + "</ul></td></tr>"
+        for problem in typical_problems
+    )
+    version_table_rows = "".join(
+        "<tr>"
+        f"<td>{_html_text(row.get('component', ''))}</td>"
+        f"<td>{_html_text(row.get('device_name', ''))}</td>"
+        f"<td>{_html_text(row.get('version', ''), '-')}</td>"
+        f"<td>{_html_text(row.get('firmware', ''), '-')}</td>"
+        f"<td>{_html_text(row.get('serial', ''), '-')}</td>"
+        f"<td>{_html_text(row.get('source', ''), '-')}</td>"
+        "</tr>"
+        for row in version_rows
+    )
+
+    generated_at = _html_text(payload.get("analyzed_at_utc", ""))
+    bundle_name = _html_text(bundle_meta.get("bundle_name", ""))
+    appliance = _html_text(bundle_meta.get("appliance"))
+
+    return f"""<!doctype html>
+<html lang="en">
 <head>
-    <meta charset=\"utf-8\" />
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NetBackup Flex Support Bundle Analysis</title>
     <style>
         :root {{
-            --bg: #f6f8fb;
+            --page: #edf1f5;
             --panel: #ffffff;
-            --ink: #1f2937;
-            --muted: #6b7280;
-            --line: #d7dee9;
+            --ink: #18212f;
+            --muted: #5d6878;
+            --line: #d8e0ea;
+            --header: #12323a;
             --accent: #0f766e;
-            --warn: #b45309;
-            --crit: #b91c1c;
-            --ok: #166534;
+            --critical: #b42318;
+            --warning: #b54708;
+            --info: #175cd3;
         }}
         * {{ box-sizing: border-box; }}
         body {{
             margin: 0;
-            font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+            font-family: "Aptos", "Segoe UI", sans-serif;
             color: var(--ink);
-            background: radial-gradient(circle at top left, #e7f2ff, var(--bg) 45%);
+            background:
+                linear-gradient(135deg, rgba(15, 118, 110, 0.12), transparent 36%),
+                linear-gradient(315deg, rgba(18, 50, 58, 0.10), transparent 34%),
+                var(--page);
         }}
-        .wrap {{ max-width: 1200px; margin: 24px auto; padding: 0 16px 32px; }}
-        .hero {{
-            background: linear-gradient(120deg, #0f766e 0%, #155e75 100%);
+        .wrap {{ max-width: 1220px; margin: 0 auto; padding: 24px 16px 44px; }}
+        header {{
             color: #fff;
-            border-radius: 14px;
-            padding: 18px 20px;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+            background: linear-gradient(135deg, var(--header), #0f766e);
+            border-radius: 8px;
+            padding: 22px 24px;
+            box-shadow: 0 16px 32px rgba(18, 33, 47, 0.18);
         }}
-        .hero h1 {{ margin: 0 0 8px; font-size: 24px; }}
-        .hero p {{ margin: 4px 0; opacity: 0.95; }}
-        .grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-            margin: 14px 0;
-        }}
-        .card {{
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 12px 14px;
-            box-shadow: 0 2px 6px rgba(2, 6, 23, 0.05);
-        }}
-        .k {{ font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }}
-        .v {{ font-size: 20px; margin-top: 4px; }}
-        h2 {{ margin: 22px 0 10px; font-size: 18px; }}
-        table {{ width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }}
-        th, td {{ text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }}
-        th {{ background: #eef3f8; font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; color: #334155; }}
-        tr:last-child td {{ border-bottom: none; }}
+        h1 {{ margin: 0 0 10px; font-size: 28px; font-weight: 700; }}
+        .meta {{ display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 0; color: rgba(255, 255, 255, 0.92); }}
+        .dashboard {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }}
+        .metric {{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }}
+        .metric strong {{ display: block; margin-top: 4px; font-size: 28px; line-height: 1; }}
+        .label {{ color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }}
+        details {{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin: 12px 0; overflow: hidden; }}
+        details[open] {{ box-shadow: 0 8px 20px rgba(18, 33, 47, 0.08); }}
+        summary {{ cursor: pointer; padding: 14px 16px; font-size: 17px; font-weight: 700; background: #f8fafc; }}
+        .section-body {{ padding: 14px 16px 18px; }}
+        .two-col {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }}
+        .panel {{ border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+        th, td {{ padding: 8px 9px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: 13px; }}
+        th {{ color: #344054; background: #eef3f8; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }}
+        tr:last-child td {{ border-bottom: 0; }}
         ul {{ margin: 8px 0; padding-left: 20px; }}
-        .pill {{ display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; border: 1px solid var(--line); }}
-        .crit {{ color: var(--crit); border-color: #fecaca; background: #fef2f2; }}
-        .warn {{ color: var(--warn); border-color: #fde68a; background: #fffbeb; }}
-        .ok {{ color: var(--ok); border-color: #bbf7d0; background: #f0fdf4; }}
+        code, textarea {{ font-family: "Cascadia Mono", Consolas, monospace; }}
+        textarea {{ width: 100%; min-height: 130px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--ink); }}
+        button {{ border: 1px solid #0d9488; border-radius: 6px; padding: 7px 10px; color: #0f4f49; background: #ecfdf5; cursor: pointer; font-weight: 700; }}
+        .copy-row {{ display: flex; justify-content: flex-end; margin: 8px 0; }}
+        .badge {{ display: inline-block; min-width: 68px; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 700; text-align: center; }}
+        .badge.critical {{ color: var(--critical); background: #fef3f2; border: 1px solid #fecdca; }}
+        .badge.warning {{ color: var(--warning); background: #fffaeb; border: 1px solid #fedf89; }}
+        .badge.info {{ color: var(--info); background: #eff8ff; border: 1px solid #b2ddff; }}
+        .critical-text {{ color: var(--critical); }}
+        .warning-text {{ color: var(--warning); }}
+        .info-text {{ color: var(--info); }}
+        @media print {{
+            body {{ background: #fff; }}
+            .wrap {{ max-width: none; padding: 0; }}
+            header, details {{ box-shadow: none; break-inside: avoid; }}
+            details {{ border-color: #9aa4b2; }}
+            details:not([open]) .section-body {{ display: block; }}
+            summary {{ list-style: none; border-bottom: 1px solid #9aa4b2; }}
+            summary::-webkit-details-marker {{ display: none; }}
+            button, .copy-row {{ display: none; }}
+            textarea {{ border: 0; min-height: auto; }}
+        }}
     </style>
 </head>
 <body>
-    <div class=\"wrap\">
-        <section class=\"hero\">
+    <div class="wrap">
+        <header>
             <h1>NetBackup Flex Support Bundle Analysis</h1>
-            <p><strong>Analyzed:</strong> {html.escape(str(payload.get('analyzed_at_utc', '')))}</p>
-            <p><strong>Bundle:</strong> {html.escape(str(bundle_meta.get('bundle_name', '')))}</p>
-            <p><strong>Appliance:</strong> {html.escape(str(bundle_meta.get('appliance') or 'unknown'))}</p>
-            <p><strong>Obfuscated Output:</strong> {'enabled' if obfuscate else 'disabled'}</p>
+            <p class="meta">
+                <span><strong>Analyzed:</strong> {generated_at}</span>
+                <span><strong>Bundle:</strong> {bundle_name}</span>
+                <span><strong>Appliance:</strong> {appliance}</span>
+                <span><strong>Obfuscated:</strong> {'enabled' if obfuscate else 'disabled'}</span>
+            </p>
+        </header>
+
+        <section class="dashboard" aria-label="Summary dashboard">
+            <div class="metric"><span class="label critical-text">Critical</span><strong>{critical_count}</strong></div>
+            <div class="metric"><span class="label warning-text">Warning</span><strong>{warning_count}</strong></div>
+            <div class="metric"><span class="label info-text">Info</span><strong>{info_count}</strong></div>
+            <div class="metric"><span class="label">Error-like Lines</span><strong>{int(payload.get('error_lines_count', 0)):,}</strong></div>
+            <div class="metric"><span class="label">Warning-like Lines</span><strong>{int(payload.get('warning_lines_count', 0)):,}</strong></div>
+            <div class="metric"><span class="label">Files Scanned</span><strong>{int(payload.get('files_scanned', 0)):,}</strong></div>
         </section>
 
-        <div class=\"grid\">
-            <div class=\"card\"><div class=\"k\">Files Indexed</div><div class=\"v\">{int(payload.get('total_files_indexed', 0))}</div></div>
-            <div class=\"card\"><div class=\"k\">Files Scanned</div><div class=\"v\">{int(payload.get('files_scanned', 0))}</div></div>
-            <div class=\"card\"><div class=\"k\">Error-like Lines</div><div class=\"v\">{int(payload.get('error_lines_count', 0))}</div></div>
-            <div class=\"card\"><div class=\"k\">Warning-like Lines</div><div class=\"v\">{int(payload.get('warning_lines_count', 0))}</div></div>
-            <div class=\"card\"><div class=\"k\">Container Count</div><div class=\"v\">{int(instances.get('container_count', 0))}</div></div>
-            <div class=\"card\"><div class=\"k\">Alert Count</div><div class=\"v\">{len(alerts)}</div></div>
-        </div>
+        <details open>
+            <summary>Summary</summary>
+            <div class="section-body two-col">
+                <div class="panel">
+                    <div class="label">Environment</div>
+                    <p><strong>Hostname:</strong> {_html_text(payload.get('host_name'))}</p>
+                    <p><strong>OS Release:</strong> {_html_text(payload.get('os_release'))}</p>
+                    <p><strong>System Serial:</strong> {_html_text(payload.get('system_serial_number'))}</p>
+                    <p><strong>Extracted Root:</strong> {_html_text(payload.get('extracted_root'))}</p>
+                </div>
+                <div class="panel">
+                    <div class="label">Notable Findings</div>
+                    <ul>{finding_rows}</ul>
+                </div>
+            </div>
+        </details>
 
-        <h2>Notable Findings</h2>
-        <div class=\"card\"><ul>{finding_rows or '<li>None</li>'}</ul></div>
+        <details open>
+            <summary>Report Card</summary>
+            <div class="section-body">
+                <div class="two-col">
+                    <div class="panel">
+                        <div class="label">Device</div>
+                        <p><strong>Name:</strong> {_html_text(report_card.get('device_name'))}</p>
+                        <p><strong>Hostname:</strong> {_html_text(report_card.get('hostname'))}</p>
+                    </div>
+                    <div class="panel">
+                        <div class="label">IPs Found</div>
+                        <ul>{ip_rows}</ul>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Component</th><th>Device Name</th><th>Version</th><th>Firmware / Build</th><th>Serial</th><th>Source</th></tr></thead>
+                    <tbody>{version_table_rows or '<tr><td colspan="6">No software or firmware versions parsed</td></tr>'}</tbody>
+                </table>
+            </div>
+        </details>
 
-        <h2>Failed Components And Alerts</h2>
-        <table>
-            <thead><tr><th>Severity</th><th>Component</th><th>Message</th><th>Source</th></tr></thead>
-            <tbody>{''.join(alert_rows) or '<tr><td colspan="4">No component failure alerts detected</td></tr>'}</tbody>
-        </table>
+        <details open>
+            <summary>Typical Hardware Datacollect Problems</summary>
+            <div class="section-body">
+                <table>
+                    <thead><tr><th>Severity</th><th>Problem</th><th>Count</th><th>Samples</th></tr></thead>
+                    <tbody>{problem_rows or '<tr><td colspan="4">No typical hardware datacollect problem patterns detected</td></tr>'}</tbody>
+                </table>
+            </div>
+        </details>
 
-        <h2>Source Index</h2>
-        <div class=\"card\"><ul>{source_rows or '<li>No explicit sources found</li>'}</ul></div>
+        <details open>
+            <summary>Hardware</summary>
+            <div class="section-body">
+                <div class="two-col">
+                    <div class="panel">
+                        <div class="label">Disk I/O</div>
+                        <p><strong>Source:</strong> {_html_text(disk.get('source'), 'not found')}</p>
+                        <p><strong>Device Count:</strong> {int(disk.get('device_count', 0))}</p>
+                    </div>
+                    <div class="panel">
+                        <div class="label">Alert Sources</div>
+                        <ul>{source_rows}</ul>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Device</th><th>Total Ops</th><th>Reads</th><th>Writes</th><th>I/O ms</th></tr></thead>
+                    <tbody>{disk_rows or '<tr><td colspan="5">No disk I/O entries parsed</td></tr>'}</tbody>
+                </table>
+            </div>
+        </details>
 
-        <h2>Disk I/O Summary</h2>
-        <div class=\"card\">
-            <p><strong>Source:</strong> {html.escape(str(disk.get('source') or 'not found'))}</p>
-            <p><strong>Device Count:</strong> {int(disk.get('device_count', 0))}</p>
-        </div>
-        <table>
-            <thead><tr><th>Device</th><th>Total Ops</th><th>Reads</th><th>Writes</th><th>I/O ms</th></tr></thead>
-            <tbody>{disk_rows or '<tr><td colspan="5">No disk I/O entries parsed</td></tr>'}</tbody>
-        </table>
+        <details open>
+            <summary>Failed Components And Alerts</summary>
+            <div class="section-body">
+                <table>
+                    <thead><tr><th>Severity</th><th>Component</th><th>Message</th><th>Source</th></tr></thead>
+                    <tbody>{''.join(alert_rows) or '<tr><td colspan="4">No component failure alerts detected</td></tr>'}</tbody>
+                </table>
+                <div class="copy-row"><button type="button" data-copy-target="alert-copy">Copy alerts</button></div>
+                <textarea id="alert-copy" readonly>{html.escape(chr(10).join(alert_copy_lines) or 'No component failure alerts detected')}</textarea>
+            </div>
+        </details>
 
-        <h2>Instance Details</h2>
-        <table>
-            <thead><tr><th>Name</th><th>CPU</th><th>Memory</th><th>Mem %</th></tr></thead>
-            <tbody>{container_rows or '<tr><td colspan="4">No container stats found</td></tr>'}</tbody>
-        </table>
+        <details>
+            <summary>Time Sync And Scan Window</summary>
+            <div class="section-body two-col">
+                <div class="panel"><div class="label">First Timestamp Seen</div><p>{_html_text(payload.get('first_timestamp_seen'), 'not found')}</p></div>
+                <div class="panel"><div class="label">Last Timestamp Seen</div><p>{_html_text(payload.get('last_timestamp_seen'), 'not found')}</p></div>
+                <div class="panel"><div class="label">Bundle Timestamp</div><p>{_html_text(bundle_meta.get('timestamp'))}</p></div>
+                <div class="panel"><div class="label">Trigger</div><p>{_html_text(bundle_meta.get('trigger'))}</p></div>
+            </div>
+        </details>
 
-        <h2>Network Details</h2>
-        <div class=\"card\">
-            <p><strong>Default Route:</strong> {html.escape(str(network.get('default_route') or 'not found'))}</p>
-            <p><strong>mgmt0 Link Speed:</strong> {html.escape(str(network.get('mgmt0_link_speed') or 'unknown'))}</p>
-            <p><strong>mgmt0 Link Detected:</strong> {html.escape(str(network.get('mgmt0_link_detected') or 'unknown'))}</p>
-        </div>
-        <table>
-            <thead><tr><th>Interface</th><th>State</th><th>IPv4</th></tr></thead>
-            <tbody>{interface_rows or '<tr><td colspan="3">No interface details parsed</td></tr>'}</tbody>
-        </table>
+        <details>
+            <summary>Logs</summary>
+            <div class="section-body">
+                <table>
+                    <thead><tr><th>Count</th><th>Recurring Pattern</th></tr></thead>
+                    <tbody>{issue_rows or '<tr><td colspan="2">None</td></tr>'}</tbody>
+                </table>
+                <div class="copy-row"><button type="button" data-copy-target="issue-copy">Copy log patterns</button></div>
+                <textarea id="issue-copy" readonly>{html.escape(issue_copy_text or 'No recurring issue patterns detected')}</textarea>
+            </div>
+        </details>
 
-        <h2>Top Issue Patterns</h2>
-        <table>
-            <thead><tr><th>Count</th><th>Pattern</th></tr></thead>
-            <tbody>{issue_rows or '<tr><td colspan="2">None</td></tr>'}</tbody>
-        </table>
+        <details>
+            <summary>Containers</summary>
+            <div class="section-body">
+                <div class="two-col">
+                    <div class="panel"><div class="label">Container Count</div><p>{int(instances.get('container_count', 0))}</p></div>
+                    <div class="panel"><div class="label">Pod Count</div><p>{int(instances.get('pod_count', 0))}</p></div>
+                    <div class="panel"><div class="label">Unhealthy Or Stopped</div><ul>{unhealthy_rows}</ul></div>
+                </div>
+                <table>
+                    <thead><tr><th>Name</th><th>CPU</th><th>Memory</th><th>Mem %</th></tr></thead>
+                    <tbody>{container_rows or '<tr><td colspan="4">No container stats found</td></tr>'}</tbody>
+                </table>
+            </div>
+        </details>
+
+        <details>
+            <summary>Network</summary>
+            <div class="section-body">
+                <div class="two-col">
+                    <div class="panel"><div class="label">Default Route</div><p>{_html_text(network.get('default_route'), 'not found')}</p></div>
+                    <div class="panel"><div class="label">mgmt0 Link</div><p>{_html_text(network.get('mgmt0_link_speed'))}, detected={_html_text(network.get('mgmt0_link_detected'))}</p></div>
+                    <div class="panel"><div class="label">Down Or No-Carrier Interfaces</div><ul>{down_interface_rows}</ul></div>
+                </div>
+                <table>
+                    <thead><tr><th>Interface</th><th>State</th><th>IPv4</th></tr></thead>
+                    <tbody>{interface_rows or '<tr><td colspan="3">No interface details parsed</td></tr>'}</tbody>
+                </table>
+                <div class="copy-row"><button type="button" data-copy-target="route-copy">Copy routes</button></div>
+                <textarea id="route-copy" readonly>{html.escape(route_copy_text or 'No route sample found')}</textarea>
+            </div>
+        </details>
+
+        <details>
+            <summary>NetBackup And Flex File Index</summary>
+            <div class="section-body">
+                <p><strong>Total keyword matches retained:</strong> {len(payload.get('netbackup_related_files', [])):,}</p>
+                <ul>{related_file_rows}</ul>
+            </div>
+        </details>
     </div>
+    <script>
+        document.querySelectorAll('button[data-copy-target]').forEach((button) => {{
+            button.addEventListener('click', async () => {{
+                const target = document.getElementById(button.dataset.copyTarget);
+                if (!target) return;
+                await navigator.clipboard.writeText(target.value);
+                const original = button.textContent;
+                button.textContent = 'Copied';
+                setTimeout(() => {{ button.textContent = original; }}, 1200);
+            }});
+        }});
+    </script>
 </body>
 </html>
 """
-        return html_doc
 
 
 def write_outputs(result: AnalysisResult, output_dir: Path, obfuscate: bool) -> None:
@@ -1162,6 +1694,42 @@ def write_outputs(result: AnalysisResult, output_dir: Path, obfuscate: bool) -> 
     report_lines.append(f"- Warning-like Lines: {payload['warning_lines_count']}")
     report_lines.append(f"- First Timestamp Seen: {payload['first_timestamp_seen'] or 'not found'}")
     report_lines.append(f"- Last Timestamp Seen: {payload['last_timestamp_seen'] or 'not found'}")
+    report_lines.append("")
+
+    report_card = payload.get("report_card", {})
+    report_lines.append("## Report Card")
+    report_lines.append(f"- Device Name: {report_card.get('device_name') or 'unknown'}")
+    report_lines.append(f"- Hostname: {report_card.get('hostname') or 'unknown'}")
+    ips = report_card.get("ip_addresses", [])
+    report_lines.append(f"- IPs Found: {', '.join(ips) if ips else 'none'}")
+    report_lines.append("- Software/Firmware Versions:")
+    version_rows = report_card.get("software_firmware_versions", [])
+    if version_rows:
+        for row in version_rows:
+            report_lines.append(
+                "  - "
+                f"{row.get('component', 'unknown')}: {row.get('device_name', 'unknown')}; "
+                f"version={row.get('version') or 'unknown'}; "
+                f"firmware/build={row.get('firmware') or 'unknown'}; "
+                f"serial={row.get('serial') or 'unknown'}; "
+                f"source={row.get('source') or 'unknown'}"
+            )
+    else:
+        report_lines.append("  - none")
+    report_lines.append("")
+
+    report_lines.append("## Typical Hardware Datacollect Problems")
+    typical_problems = payload.get("typical_problem_findings", [])
+    if typical_problems:
+        for problem in typical_problems:
+            report_lines.append(
+                f"- [{str(problem.get('severity', 'info')).upper()}] "
+                f"{problem.get('label', 'unknown')}: count={problem.get('count', 0)}"
+            )
+            for sample in problem.get("samples", []):
+                report_lines.append(f"  - {sample.get('source', 'unknown')}: {sample.get('line', '')}")
+    else:
+        report_lines.append("- No typical hardware datacollect problem patterns detected")
     report_lines.append("")
 
     report_lines.append("## Disk I/O Summary")
@@ -1306,6 +1874,7 @@ def main() -> int:
     print("Analysis complete")
     print(f"Output directory: {output_dir}")
     print(f"Report: {output_dir / 'report.md'}")
+    print(f"HTML report: {output_dir / 'report.html'}")
     print(f"Summary: {output_dir / 'summary.json'}")
     return 0
 
