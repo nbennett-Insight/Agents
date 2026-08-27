@@ -28,6 +28,7 @@ RELEASE_CATALOG = {
     "11.2": {
         "base_url": "https://docs.cohesity.com/docs/netbackup/11.2/103228346-171368441-0",
         "features_url": "https://docs.cohesity.com/docs/netbackup/11.2/103228346-171368441-0/v172450863-171368441",
+        "resolved_eebs_url": "https://docs.cohesity.com/docs/netbackup/11.2/81225970-170177351-0/v172867636-170177351",
         "features": [
             {
                 "id": "cohesity-terminology",
@@ -478,6 +479,45 @@ def score_feature(feature: dict, infra: dict) -> tuple[str, str]:
     return relevance, "; ".join(dict.fromkeys(matched_reasons))  # dedupe while keeping order
 
 
+def fetch_resolved_eeb_features(version: str) -> list[dict]:
+    """Return the EEBs incorporated into the target NetBackup release."""
+    eebs_url = RELEASE_CATALOG[version].get("resolved_eebs_url")
+    if not eebs_url:
+        return []
+
+    try:
+        response = requests.get(eebs_url, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        print(f"WARNING: Could not retrieve resolved EEBs: {exc}", file=sys.stderr)
+        return []
+
+    table = BeautifulSoup(response.text, "html.parser").find("table")
+    if table is None:
+        print("WARNING: Could not find the resolved EEB table.", file=sys.stderr)
+        return []
+
+    eeb_features = []
+    for row in table.find_all("tr"):
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all("td")]
+        if len(cells) != 2:
+            continue
+        eeb_number, description = cells
+        feature_id = re.sub(r"[^a-z0-9]+", "-", eeb_number.lower()).strip("-")
+        eeb_features.append(
+            {
+                "id": f"eeb-{feature_id}",
+                "title": f"EEB {eeb_number} resolved in NetBackup {version}",
+                "category": "Resolved EEB",
+                "description": description,
+                "url": eebs_url,
+                "tags": ["all"],
+                "impact": "Medium",
+            }
+        )
+    return eeb_features
+
+
 def build_output_rows(version: str, infra: dict) -> list[dict]:
     catalog = RELEASE_CATALOG.get(version)
     if not catalog:
@@ -497,7 +537,8 @@ def build_output_rows(version: str, infra: dict) -> list[dict]:
         infra["current_version"],
     )
 
-    for feat in catalog["features"]:
+    features = catalog["features"] + fetch_resolved_eeb_features(version)
+    for feat in features:
         relevance, reason = score_feature(feat, infra)
         rows.append(
             {
@@ -547,6 +588,7 @@ def write_json(rows: list[dict], infra: dict, version: str, path: Path) -> None:
             "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             "target_version": version,
             "release_notes_url": RELEASE_CATALOG[version]["features_url"],
+            "resolved_eebs_url": RELEASE_CATALOG[version].get("resolved_eebs_url"),
             "site_company": infra["company"],
             "primary_servers": [
                 {"hostname": s["hostname"], "version": s["version"]}
@@ -621,8 +663,7 @@ def main():
         print(f"      Media   : {s['hostname']}  (v{s['version']})")
     print(f"      Policy types: {infra['policy_types']}")
 
-    print(f"[2/3] Evaluating {len(RELEASE_CATALOG[args.version]['features'])} "
-          f"NetBackup {args.version} features against site profile...")
+    print(f"[2/3] Evaluating NetBackup {args.version} features and resolved EEBs against site profile...")
     rows = build_output_rows(args.version, infra)
 
     # Summary
